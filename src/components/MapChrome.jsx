@@ -104,6 +104,8 @@ export function MapChrome({
     map.createPane('platesPane');
     map.getPane('platesPane').style.zIndex = 350;
     map.getPane('platesPane').style.pointerEvents = 'none';
+    map.createPane('bboxTools');
+    map.getPane('bboxTools').style.zIndex = 650;
     const spec = TILES[mapStyle] || TILES.dark;
     tilesRef.current = L.tileLayer(spec.url, { attribution: spec.attr, subdomains: 'abcd', maxZoom: 19 }).addTo(map);
     markersRef.current = L.layerGroup().addTo(map);
@@ -276,6 +278,11 @@ export function MapChrome({
     if (!drawRef.current) return;
     drawRef.current.clearLayers();
     if (!searchBounds) return;
+    const map = mapRef.current;
+    if (map && !map.getPane('bboxTools')) {
+      map.createPane('bboxTools');
+      map.getPane('bboxTools').style.zIndex = 650;
+    }
     const color = liveColor();
     const rect = L.rectangle(
       [[searchBounds.minLat, searchBounds.minLon], [searchBounds.maxLat, searchBounds.maxLon]],
@@ -290,23 +297,34 @@ export function MapChrome({
     );
     rect.addTo(drawRef.current);
     const x = L.marker([searchBounds.maxLat, searchBounds.maxLon], {
+      pane: 'bboxTools',
       icon: L.divIcon({
         className: 'sv-bbox-x',
-        html: `<button type="button" aria-label="${t('clear_boundary')}">×</button>`,
-        iconSize: [18, 18],
-        iconAnchor: [0, 18],
+        html: `<button type="button" class="sv-bbox-x-btn" aria-label="${t('clear_boundary')}">×</button>`,
+        iconSize: [22, 22],
+        iconAnchor: [0, 22],
       }),
       interactive: true,
       keyboard: false,
-      zIndexOffset: 800,
+      zIndexOffset: 1000,
     });
-    x.on('click', (e) => {
-      L.DomEvent.stop(e);
-      onClearBoundsRef.current?.();
-    });
+    const bindX = () => {
+      const el = x.getElement();
+      const btn = el?.querySelector('button') || el;
+      if (!btn || btn.dataset.svBound) return;
+      btn.dataset.svBound = '1';
+      const clear = (ev) => {
+        L.DomEvent.stop(ev);
+        onClearBoundsRef.current?.();
+      };
+      L.DomEvent.on(btn, 'click', clear);
+      L.DomEvent.on(btn, 'mousedown', L.DomEvent.stop);
+      L.DomEvent.on(btn, 'pointerdown', L.DomEvent.stop);
+      L.DomEvent.on(btn, 'dblclick', L.DomEvent.stop);
+    };
+    x.on('add', bindX);
     x.addTo(drawRef.current);
-    const el = x.getElement();
-    if (el) L.DomEvent.disableClickPropagation(el);
+    bindX();
   }, [searchBounds]);
 
   useEffect(() => {

@@ -199,24 +199,24 @@ a { color: var(--text); }
 }
 .sv-map-drawing,
 .sv-map-drawing .leaflet-container { cursor: crosshair !important; }
-.sv-map-drawing .leaflet-overlay-pane,
-.sv-map-drawing .leaflet-marker-pane { pointer-events: none; }
 .sv-bbox-x {
   pointer-events: auto !important;
   background: none !important;
   border: none !important;
 }
+.sv-bbox-x-btn,
 .sv-bbox-x button {
-  width: 18px;
-  height: 18px;
+  width: 22px;
+  height: 22px;
   padding: 0;
   border-radius: 50%;
   border: 1px solid var(--border);
   background: var(--panel);
   color: var(--text);
-  font-size: 12px;
-  line-height: 16px;
+  font-size: 13px;
+  line-height: 20px;
   cursor: pointer;
+  pointer-events: auto;
 }
 .sv-progress {
   height: 2px;
