@@ -10,6 +10,7 @@ export function EventRow({ quake, selected, bookmarked, onSelect, onBookmark, on
   return (
     <div
       className={`event-row ${selected ? 'selected' : ''}`}
+      data-event-id={quake.id}
       role="button"
       tabIndex={0}
       onClick={() => onSelect(quake)}

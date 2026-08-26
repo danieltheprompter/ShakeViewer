@@ -12,7 +12,6 @@ import { AppHeader } from './components/AppHeader.jsx';
 import { QueryBar } from './components/QueryBar.jsx';
 import { FilterPopover } from './components/FilterPopover.jsx';
 import { EventRow } from './components/EventRow.jsx';
-import { EventDetail, nearbyOf } from './components/EventDetail.jsx';
 import { MapChrome } from './components/MapChrome.jsx';
 import { DisclaimerBar } from './components/StatusLive.jsx';
 import { EmptyState } from './components/StatusLive.jsx';
@@ -172,21 +171,40 @@ function Monitor() {
   }, [feed.quakes, query.minmag, query.maxmag, query.depth, query.near, query.sort, userLocation, starredOn, bookmarks.ids]);
 
   const stats = useMemo(() => statsOf(filtered), [filtered]);
-  const selected = pathId ? (findByAnyId(feed.quakes, pathId) || detailExtra) : null;
+  const selectedEventId = pathId || query.event || null;
+  const selectedQuake = selectedEventId
+    ? (findByAnyId(filtered, selectedEventId) || findByAnyId(feed.quakes, selectedEventId) || (detailExtra && findByAnyId([detailExtra], selectedEventId)))
+    : null;
 
   useEffect(() => {
-    if (!pathId || findByAnyId(feed.quakes, pathId) || detailExtra?.id === pathId) return;
-    fetchUsgsDetail(pathId).then((q) => { if (q) setDetailExtra(q); });
-  }, [pathId, feed.quakes, detailExtra]);
+    if (!selectedEventId || findByAnyId(feed.quakes, selectedEventId) || (detailExtra && findByAnyId([detailExtra], selectedEventId))) return;
+    fetchUsgsDetail(selectedEventId).then((q) => { if (q) setDetailExtra(q); });
+  }, [selectedEventId, feed.quakes, detailExtra]);
 
-  const openEvent = (q) => {
-    const qs = queryString(query, theme);
-    nav(`/event/${encodeURIComponent(q.id)}${qs}`);
-    if (mobile) setSheet('full');
-  };
-  const closeEvent = () => {
-    nav(`/${queryString(query, theme)}`);
-  };
+  const clearSelection = useCallback(() => {
+    const next = { ...parseQuery(params, pathId, theme), event: null };
+    nav(`/${queryString(next, theme)}`, { replace: true });
+  }, [params, pathId, nav, theme]);
+
+  const selectEvent = useCallback((q) => {
+    if (!q) return;
+    if (selectedEventId && findByAnyId([q], selectedEventId)) {
+      clearSelection();
+      return;
+    }
+    const next = { ...parseQuery(params, pathId, theme), event: q.id };
+    nav(`/${queryString(next, theme)}`, { replace: true });
+  }, [params, pathId, nav, theme, selectedEventId, clearSelection]);
+
+  useEffect(() => {
+    const id = selectedQuake?.id;
+    if (!id) return undefined;
+    const rid = requestAnimationFrame(() => {
+      document.querySelectorAll(`[data-event-id="${CSS.escape(id)}"]`)
+        .forEach((el) => el.scrollIntoView({ block: 'center', inline: 'nearest' }));
+    });
+    return () => cancelAnimationFrame(rid);
+  }, [selectedQuake?.id]);
 
   const share = async (q) => {
     const url = `${window.location.origin}/event/${encodeURIComponent(q.id)}`;
@@ -225,17 +243,16 @@ function Monitor() {
     const onKey = (e) => {
       if (e.key !== 'Escape') return;
       if (filtersOpen) { setFiltersOpen(false); return; }
-      if (pathId) { closeEvent(); return; }
+      if (selectedEventId) { clearSelection(); return; }
       if (query.range === 'custom') { patch({ range: '24h', start: null, end: null }); return; }
       if (mobile && sheet !== 'default') setSheet('default');
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [filtersOpen, pathId, query.range, mobile, sheet]);
+  }, [filtersOpen, selectedEventId, query.range, mobile, sheet, clearSelection]);
 
   const sourceChip = !feed.usgsOk ? t('usgs_unavailable') : !feed.emscOk ? t('emsc_unavailable') : null;
   const listDim = feed.refreshing && !feed.firstLoad;
-  const showDetail = !!selected && !!pathId;
 
   const listBlock = (
     <>
@@ -271,20 +288,7 @@ function Monitor() {
       )}
       {feed.error && <div className="banner warn">{feed.error === 'offline' ? t('offline') : feed.error}</div>}
       <div className={`sv-list-scroll ${listDim ? 'dim' : ''}`} aria-label={t('event_list')}>
-        {showDetail ? (
-          <EventDetail
-            quake={selected}
-            onBack={closeEvent}
-            onBookmark={bookmark}
-            onShare={share}
-            bookmarked={bookmarks.ids.has(selected.id)}
-            signedIn={!!user}
-            theme={theme}
-            nearby={nearbyOf(selected, filtered)}
-            onSelectNearby={openEvent}
-            userLocation={userLocation}
-          />
-        ) : feed.firstLoad ? (
+        {feed.firstLoad ? (
           Array.from({ length: 8 }).map((_, i) => <div key={i} className="skel" />)
         ) : filtered.length === 0 ? (
           <EmptyState mag={query.minmag} onClear={() => patch({ minmag: ingestFloor(query.range), depth: 'all', near: 0 })} />
@@ -294,9 +298,9 @@ function Monitor() {
               <EventRow
                 key={q.id}
                 quake={q}
-                selected={q.id === pathId}
+                selected={selectedQuake ? q.id === selectedQuake.id : false}
                 bookmarked={bookmarks.ids.has(q.id)}
-                onSelect={openEvent}
+                onSelect={selectEvent}
                 onBookmark={bookmark}
                 onShare={share}
                 signedIn={!!user}
@@ -312,8 +316,10 @@ function Monitor() {
   const map = (
     <MapChrome
       quakes={filtered}
-      selectedId={pathId}
-      onSelect={openEvent}
+      selectedId={selectedEventId}
+      selectedQuake={selectedQuake}
+      onSelect={selectEvent}
+      onClear={clearSelection}
       mapStyle={query.map}
       plates={!!query.plates}
       theme={theme}
@@ -334,7 +340,7 @@ function Monitor() {
       {mobile && (
         <>
           <BottomSheet
-            detent={mapMode === 'list' ? 'full' : (showDetail ? 'full' : sheet)}
+            detent={mapMode === 'list' ? 'full' : sheet}
             onDetent={(d) => { setSheet(d); setMapMode(d === 'full' ? 'list' : 'map'); }}
           >
             {listBlock}
@@ -352,7 +358,7 @@ function Monitor() {
       {feed.toasts.length > 0 && (
         <div className="toast-stack">
           {feed.toasts.map((x) => (
-            <button key={x.id} className="toast" onClick={() => { feed.dismissToast(x.id); const q = findByAnyId(feed.quakes, x.id); if (q) openEvent(q); }}>
+            <button key={x.id} className="toast" onClick={() => { feed.dismissToast(x.id); const q = findByAnyId(feed.quakes, x.id); if (q) selectEvent(q); }}>
               {t('new_quake', { mag: fmtMag(x.mag), place: x.place })}
             </button>
           ))}

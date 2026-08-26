@@ -1,10 +1,13 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { createRoot } from 'react-dom/client';
+import { flushSync } from 'react-dom';
 import L from 'leaflet';
 import { magFill, markerRadius } from '../lib/mag.js';
 import { prefersReducedMotion } from '../lib/time.js';
 import { t } from '../lib/i18n.js';
 import { Icon } from './Icons.jsx';
 import { MagLegend } from './MagBadge.jsx';
+import { MapPopup } from './MapPopup.jsx';
 
 const TILES = {
   dark: { url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', attr: '© OpenStreetMap · © CARTO' },
@@ -12,32 +15,55 @@ const TILES = {
   satellite: { url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', attr: 'Tiles © Esri' },
 };
 
-function popupEl(quake) {
-  const box = document.createElement('div');
-  box.style.minWidth = '160px';
-  const mag = document.createElement('div');
-  mag.className = 'mono';
-  mag.style.fontWeight = '600';
-  mag.textContent = quake.mag == null ? '—' : `M ${Number(quake.mag).toFixed(1)}`;
-  const place = document.createElement('div');
-  place.textContent = quake.place || '';
-  box.appendChild(mag);
-  box.appendChild(place);
-  return box;
+function liveColor() {
+  try {
+    const v = getComputedStyle(document.documentElement).getPropertyValue('--live').trim();
+    return v || '#4CC9F0';
+  } catch {
+    return '#4CC9F0';
+  }
+}
+
+function markerStyle(q, selected, theme) {
+  const r = markerRadius(q.mag);
+  return {
+    radius: selected ? r * 1.1 : r,
+    color: selected ? liveColor() : 'rgba(255,255,255,0.45)',
+    weight: selected ? 2 : 1,
+    fillColor: magFill(q.mag, theme),
+    fillOpacity: 0.92,
+  };
+}
+
+function styleLabel(mapStyle) {
+  if (mapStyle === 'light') return t('style_light');
+  if (mapStyle === 'satellite') return t('style_satellite');
+  return t('style_dark');
 }
 
 export function MapChrome({
-  quakes, selectedId, onSelect, mapStyle, plates, theme, userLocation, onLocate,
-  onMapStyle, onPlates, isDrawing, onDrawComplete, searchBounds,
+  quakes, selectedId, selectedQuake, onSelect, onClear, mapStyle, plates, theme,
+  userLocation, onLocate, onMapStyle, onPlates, isDrawing, onDrawComplete, searchBounds,
 }) {
   const ref = useRef(null);
   const mapRef = useRef(null);
   const tilesRef = useRef(null);
   const markersRef = useRef(null);
+  const markersById = useRef(new Map());
   const platesRef = useRef(null);
   const userRef = useRef(null);
   const drawRef = useRef(null);
   const drawStart = useRef(null);
+  const popupRef = useRef(null);
+  const popupEl = useRef(null);
+  const popupRoot = useRef(null);
+  const onSelectRef = useRef(onSelect);
+  const onClearRef = useRef(onClear);
+  const wrapRef = useRef(null);
+  const flownRef = useRef(null);
+
+  onSelectRef.current = onSelect;
+  onClearRef.current = onClear;
 
   useEffect(() => {
     if (!ref.current || mapRef.current) return;
@@ -57,15 +83,36 @@ export function MapChrome({
     userRef.current = L.layerGroup().addTo(map);
     drawRef.current = L.layerGroup().addTo(map);
     mapRef.current = map;
+    popupEl.current = document.createElement('div');
+    L.DomEvent.disableClickPropagation(popupEl.current);
+    popupRoot.current = createRoot(popupEl.current);
+    popupRef.current = L.popup({
+      closeButton: false,
+      closeOnClick: false,
+      autoClose: false,
+      closeOnEscapeKey: false,
+      className: 'sv-map-popup',
+      maxWidth: 240,
+      minWidth: 0,
+      autoPan: true,
+      autoPanPadding: [56, 56],
+    });
+    map.on('click', (e) => {
+      const t = e.originalEvent?.target;
+      if (t && (t.closest?.('.leaflet-interactive') || t.closest?.('.sv-map-popup') || t.closest?.('.leaflet-popup'))) return;
+      onClearRef.current?.();
+    });
     const invalidate = () => map.invalidateSize();
     const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(invalidate) : null;
     if (ro && ref.current) ro.observe(ref.current);
-    const t = setTimeout(invalidate, 80);
+    const tmr = setTimeout(invalidate, 80);
     window.addEventListener('resize', invalidate);
     return () => {
-      clearTimeout(t);
+      clearTimeout(tmr);
       window.removeEventListener('resize', invalidate);
       ro?.disconnect();
+      popupRoot.current?.unmount();
+      popupRoot.current = null;
       map.remove();
       mapRef.current = null;
     };
@@ -100,39 +147,73 @@ export function MapChrome({
 
   useEffect(() => {
     if (!markersRef.current) return;
-    markersRef.current.clearLayers();
-    quakes.forEach((q) => {
-      const selected = q.id === selectedId;
-      const m = L.circleMarker([q.lat, q.lon], {
-        radius: markerRadius(q.mag),
-        color: selected ? '#ffffff' : 'rgba(255,255,255,0.45)',
-        weight: selected ? 2 : 1,
-        fillColor: magFill(q.mag, theme),
-        fillOpacity: 0.92,
-      });
-      m.on('click', () => onSelect(q));
-      const pop = L.popup({ closeButton: true });
-      m.bindPopup(pop);
-      m.on('popupopen', () => { pop.setContent(popupEl(q)); });
-      m.addTo(markersRef.current);
-    });
-  }, [quakes, selectedId, theme, onSelect]);
+    const list = [...(quakes || [])];
+    if (selectedQuake && !list.some((q) => q.id === selectedQuake.id)) list.push(selectedQuake);
+    const keep = new Set(list.map((q) => q.id));
+    for (const [id, m] of markersById.current) {
+      if (keep.has(id)) continue;
+      markersRef.current.removeLayer(m);
+      markersById.current.delete(id);
+    }
+    for (const q of list) {
+      let m = markersById.current.get(q.id);
+      const selected = selectedQuake ? q.id === selectedQuake.id : q.id === selectedId;
+      if (!m) {
+        m = L.circleMarker([q.lat, q.lon], markerStyle(q, selected, theme));
+        m.on('click', (e) => {
+          L.DomEvent.stop(e);
+          onSelectRef.current?.(m._quake);
+        });
+        m.addTo(markersRef.current);
+        markersById.current.set(q.id, m);
+      } else {
+        m.setLatLng([q.lat, q.lon]);
+        m.setStyle(markerStyle(q, selected, theme));
+      }
+      m._quake = q;
+      if (selected) m.bringToFront();
+    }
+  }, [quakes, selectedQuake, selectedId, theme]);
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !selectedId) return;
-    const q = quakes.find((x) => x.id === selectedId);
-    if (!q) return;
-    const z = Math.max(map.getZoom(), 4);
-    if (prefersReducedMotion()) map.setView([q.lat, q.lon], z);
-    else map.flyTo([q.lat, q.lon], z, { duration: 0.6 });
-  }, [selectedId]);
+    const popup = popupRef.current;
+    const root = popupRoot.current;
+    if (!map || !popup || !root) return;
+    if (!selectedId || !selectedQuake) {
+      flownRef.current = null;
+      map.closePopup();
+      return undefined;
+    }
+    const r = markerRadius(selectedQuake.mag) * 1.1;
+    popup.options.offset = L.point(r + 8, -(r + 8));
+    flushSync(() => {
+      root.render(
+        <MapPopup quake={selectedQuake} theme={theme} onClose={() => onClearRef.current?.()} />,
+      );
+    });
+    popup.setLatLng([selectedQuake.lat, selectedQuake.lon]);
+    popup.setContent(popupEl.current);
+    if (!popup.isOpen()) popup.openOn(map);
+    else popup.update();
+
+    if (flownRef.current !== selectedId) {
+      flownRef.current = selectedId;
+      const padded = map.getBounds().pad(-0.18);
+      if (!padded.contains([selectedQuake.lat, selectedQuake.lon])) {
+        const z = Math.max(map.getZoom(), 4);
+        if (prefersReducedMotion()) map.setView([selectedQuake.lat, selectedQuake.lon], z);
+        else map.flyTo([selectedQuake.lat, selectedQuake.lon], z, { duration: 0.45 });
+      }
+    }
+    return undefined;
+  }, [selectedId, selectedQuake, theme]);
 
   useEffect(() => {
     if (!userRef.current) return;
     userRef.current.clearLayers();
     if (!userLocation) return;
-    const m = L.circleMarker([userLocation.lat, userLocation.lng], {
+    L.circleMarker([userLocation.lat, userLocation.lng], {
       radius: 6,
       color: '#ffffff',
       weight: 2,
@@ -156,7 +237,7 @@ export function MapChrome({
     if (!map) return;
     if (!isDrawing) {
       map.dragging.enable();
-      return;
+      return undefined;
     }
     map.dragging.disable();
     const onDown = (e) => { drawStart.current = e.latlng; };
@@ -176,23 +257,65 @@ export function MapChrome({
     return () => { map.off('mousedown', onDown); map.off('mouseup', onUp); map.dragging.enable(); };
   }, [isDrawing, onDrawComplete]);
 
+  useEffect(() => {
+    if (!menuOpen) return undefined;
+    const onDown = (e) => {
+      if (wrapRef.current?.contains(e.target)) return;
+      setMenuOpen(false);
+    };
+    const onKey = (e) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      e.stopPropagation();
+      setMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    window.addEventListener('keydown', onKey, true);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      window.removeEventListener('keydown', onKey, true);
+    };
+  }, [menuOpen]);
+
   return (
     <div className="sv-map">
       <div ref={ref} style={{ position: 'absolute', inset: 0 }} />
       <div className="map-chrome">
-        <div className="map-layers">
-          <div className="map-layer-panel">
-            {['dark', 'light', 'satellite'].map((s) => (
-              <button key={s} className={`chip ${mapStyle === s ? 'on' : ''}`} style={{ height: 28, padding: '0 8px', fontSize: 12 }}
-                onClick={() => onMapStyle(s)}>
-                {t(s === 'dark' ? 'style_dark' : s === 'light' ? 'style_light' : 'style_satellite')}
+        <div className="map-layers" ref={wrapRef}>
+          <button
+            type="button"
+            className="sv-btn map-layers-btn"
+            aria-expanded={menuOpen}
+            aria-label={t('layers')}
+            onClick={() => setMenuOpen((v) => !v)}
+          >
+            <span className="map-layers-icon">
+              <Icon name="layers" size={16} />
+              {!!plates && <i className="map-layers-dot" />}
+            </span>
+            {styleLabel(mapStyle)}
+          </button>
+          {menuOpen && (
+            <div className="map-layers-menu" role="menu">
+              <div className="seg">
+                {['dark', 'light', 'satellite'].map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    className={mapStyle === s ? 'on' : ''}
+                    onClick={() => onMapStyle(s)}
+                  >
+                    {styleLabel(s)}
+                  </button>
+                ))}
+              </div>
+              <div className="map-layers-rule" />
+              <button type="button" className="toggle-row map-layers-plates" onClick={() => onPlates(!plates)}>
+                <span className="control">{t('plate_boundaries')}</span>
+                <span className={`switch ${plates ? 'on' : ''}`}><i /></span>
               </button>
-            ))}
-            <button className={`chip ${plates ? 'on' : ''}`} style={{ height: 28, padding: '0 8px', fontSize: 12 }}
-              onClick={() => onPlates(!plates)}>
-              {t('plate_boundaries')}
-            </button>
-          </div>
+            </div>
+          )}
         </div>
         <div className="map-bottom-right">
           <button className="sv-btn icon map-locate" onClick={onLocate} aria-label={t('locate_me')} title={t('locate_me')}>

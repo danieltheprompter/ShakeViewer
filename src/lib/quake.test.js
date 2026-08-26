@@ -220,4 +220,11 @@ describe('parseQuery', () => {
     expect(serializeQuery({ ...DEFAULT_QUERY, map: 'dark' }, { theme: 'dark' }).get('map')).toBeNull();
     expect(serializeQuery({ ...DEFAULT_QUERY, map: 'satellite' }, { theme: 'light' }).get('map')).toBe('satellite');
   });
+  it('treats ?event= and /event/:id as the same selection', () => {
+    expect(parseQuery('event=us7000abcd').event).toBe('us7000abcd');
+    expect(parseQuery('', 'us7000abcd').event).toBe('us7000abcd');
+    expect(parseQuery('event=fromquery', 'frompath').event).toBe('frompath');
+    expect(serializeQuery({ ...DEFAULT_QUERY, event: 'us1' }).get('event')).toBe('us1');
+    expect(serializeQuery(DEFAULT_QUERY).get('event')).toBeNull();
+  });
 });

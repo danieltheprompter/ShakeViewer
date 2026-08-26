@@ -108,6 +108,7 @@ export function serializeQuery(q, { omitDefaults = true, theme = 'dark' } = {}) 
   if (!omitDefaults || q.sort !== 'time') p.set('sort', q.sort || 'time');
   if (q.plates) p.set('plates', '1');
   if (q.near) p.set('near', '1');
+  if (q.event) p.set('event', q.event);
   const themeMap = defaultMapStyle(theme);
   const map = q.map || themeMap;
   if (!omitDefaults || map === 'satellite' || map !== themeMap) p.set('map', map);
