@@ -1,0 +1,221 @@
+/* App layout styles — composed on top of styles.css tokens */
+
+.sv-app { height: 100%; width: 100%; position: relative; display: flex; flex-direction: column; overflow: hidden; background: var(--bg-0); }
+.sv-main { flex: 1; position: relative; min-height: 0; }
+
+/* ─── Header ─── */
+.sv-header {
+  flex: 0 0 auto;
+  height: 56px;
+  display: flex; align-items: center;
+  padding: 0 20px;
+  background: var(--bg-1);
+  border-bottom: 1px solid var(--line);
+  z-index: 50;
+  gap: 16px;
+}
+.sv-header.desktop { padding: 0 24px; gap: 20px; }
+.sv-header.mobile { padding: 0 12px; }
+.sv-header .sv-header-row { display: flex; align-items: center; justify-content: space-between; width: 100%; }
+.sv-brand { display: flex; align-items: center; gap: 10px; color: var(--fg-0); }
+.sv-header-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+
+/* ─── Desktop panel ─── */
+.sv-panel {
+  position: absolute;
+  top: 16px; left: 16px; bottom: 16px;
+  width: 420px;
+  background: rgba(15, 19, 26, 0.82);
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.32s cubic-bezier(.4,.0,.2,1), opacity 0.2s;
+}
+:root[data-theme="light"] .sv-panel { background: rgba(255,255,255,0.88); }
+.sv-panel.collapsed { transform: translateX(calc(-100% - 24px)); }
+.sv-panel-inner { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+
+.sv-panel-handle {
+  position: absolute;
+  right: -32px; top: 50%; transform: translateY(-50%);
+  width: 32px; height: 56px;
+  background: rgba(15, 19, 26, 0.82);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--line);
+  border-left: 0;
+  border-radius: 0 var(--radius) var(--radius) 0;
+  color: var(--fg-2);
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: var(--shadow-sm);
+  transition: color 0.15s;
+}
+.sv-panel-handle:hover { color: var(--fg-0); }
+.sv-panel.collapsed .sv-panel-handle { right: -32px; }
+
+/* Hero band */
+.sv-hero { padding: 20px 24px 18px; flex: 0 0 auto; }
+.sv-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+.sv-stat {}
+
+/* Collapsible section */
+.sv-collapsible { flex: 0 0 auto; }
+.sv-collapsible-header {
+  width: 100%; display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 24px;
+  color: var(--fg-1);
+}
+.sv-collapsible-header:hover { background: var(--bg-2); }
+.sv-collapsible-body { padding-bottom: 4px; }
+
+/* List header */
+.sv-list-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 24px 6px;
+  flex: 0 0 auto;
+}
+.sv-list-scroll { flex: 1; overflow-y: auto; min-height: 0; }
+
+/* ─── Legend ─── */
+.sv-legend {
+  position: absolute;
+  bottom: 20px; right: 20px;
+  background: rgba(15, 19, 26, 0.82);
+  backdrop-filter: blur(14px);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  min-width: 210px;
+  z-index: 25;
+  box-shadow: var(--shadow);
+}
+:root[data-theme="light"] .sv-legend { background: rgba(255,255,255,0.9); }
+.sv-legend-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 3px 0;
+  white-space: nowrap;
+}
+
+/* ─── Mobile sheet ─── */
+.sv-sheet {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  background: var(--bg-1);
+  border-top: 1px solid var(--line);
+  border-radius: 18px 18px 0 0;
+  box-shadow: 0 -16px 40px rgba(0,0,0,0.4);
+  z-index: 40;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  touch-action: pan-y;
+}
+.sv-sheet-grip {
+  flex: 0 0 auto;
+  padding: 10px 0 8px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+.sv-sheet-grip-bar {
+  width: 44px; height: 4px; border-radius: 4px;
+  background: var(--line-strong);
+}
+.sv-sheet-body { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+.sv-sheet-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 6px 20px 16px;
+  flex: 0 0 auto;
+  gap: 12px;
+}
+
+/* ─── Detail ─── */
+.qd-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 16px 8px;
+}
+.qd-hero {
+  padding: 8px 24px 20px;
+  display: flex; gap: 20px; align-items: flex-start;
+}
+.qd-mag-stamp {
+  flex: 0 0 auto;
+  width: 96px; height: 96px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.1);
+  position: relative;
+}
+.qd-mag-stamp::after {
+  content: ""; position: absolute; inset: -6px;
+  border: 1px solid currentColor; border-radius: 50%; opacity: 0.3;
+}
+.qd-meta { flex: 1; min-width: 0; }
+
+.qd-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  margin: 0 0 22px;
+}
+.stat-cell {
+  padding: 16px 24px;
+  border-right: 1px solid var(--line);
+}
+.stat-cell:nth-child(2n) { border-right: 0; }
+.stat-cell:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
+
+/* ─── Tweaks panel ─── */
+.sv-tweaks {
+  position: fixed; right: 20px; bottom: 20px;
+  width: 260px;
+  background: rgba(15,19,26, 0.94);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  box-shadow: var(--shadow-lg);
+  z-index: 500;
+}
+:root[data-theme="light"] .sv-tweaks { background: rgba(255,255,255,0.96); }
+.sv-tweaks-header {
+  display: flex; align-items: baseline; justify-content: space-between;
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+/* ─── Responsive ─── */
+/* Hide tagline when header gets crowded on smaller desktop widths */
+@media (max-width: 1180px) {
+  .sv-header .sv-tagline { display: none !important; }
+}
+
+/* Legend: keep ranges/labels on a single line, align cleanly */
+.sv-legend { min-width: 240px; }
+.sv-legend-row .mono { flex: 0 0 auto; min-width: 64px; }
+.sv-legend-row { white-space: nowrap !important; }
+
+@media (max-width: 900px) {
+  .sv-header { height: 52px; }
+  .sv-panel, .sv-legend { display: none; }
+  .sv-stats { grid-template-columns: repeat(2, 1fr); }
+  .qd-hero { padding: 8px 20px 18px; gap: 14px; }
+  .qd-mag-stamp { width: 76px; height: 76px; }
+  .qd-mag-stamp .display { font-size: 48px !important; }
+  .stat-cell { padding: 14px 20px; }
+  .sv-tweaks { right: 12px; bottom: 12px; left: 12px; width: auto; }
+}
+
+@media (min-width: 901px) {
+  .sv-sheet { display: none; }
+}
+
+/* Marker wrap — Leaflet needs default reset */
+.sv-marker-wrap { background: transparent !important; border: 0 !important; }
