@@ -61,6 +61,7 @@ export function MapChrome({
   const onClearRef = useRef(onClear);
   const wrapRef = useRef(null);
   const flownRef = useRef(null);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   onSelectRef.current = onSelect;
   onClearRef.current = onClear;
