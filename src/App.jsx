@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { BrowserRouter, Link, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { applyClientFilters, findByAnyId, sortQuakes, statsOf } from './lib/quake.js';
-import { clampMinmag, ingestFloor, parseQuery, queryString } from './lib/query.js';
+import { applyBboxPatch, bboxOf, clampMinmag, clearBboxPatch, enterRange, ingestFloor, parseQuery, queryString } from './lib/query.js';
 import { formatRelTime } from './lib/time.js';
 import { fmtMag } from './lib/mag.js';
 import { fetchUsgsDetail } from './lib/feeds.js';
@@ -124,6 +124,7 @@ function Monitor() {
   const [note, setNote] = useState(null);
   const [, setTick] = useState(0);
   const [detailExtra, setDetailExtra] = useState(null);
+  const [drawing, setDrawing] = useState(false);
 
   const query = useMemo(() => parseQuery(params, pathId, theme), [params, pathId, theme]);
 
@@ -146,6 +147,20 @@ function Monitor() {
     window.addEventListener('sv-theme', on);
     return () => window.removeEventListener('sv-theme', on);
   }, [query.map, patch]);
+
+  useEffect(() => {
+    if (query.range !== 'custom') {
+      setDrawing(false);
+      return;
+    }
+    if (!params.get('start') || !params.get('end')) patch({});
+  }, [query.range, params, patch]);
+
+  useEffect(() => {
+    if (!query.draw) return;
+    setDrawing(true);
+    patch({});
+  }, [query.draw, patch]);
 
   const feed = useFeed(query);
 
@@ -242,14 +257,14 @@ function Monitor() {
   useEffect(() => {
     const onKey = (e) => {
       if (e.key !== 'Escape') return;
+      if (drawing) return;
       if (filtersOpen) { setFiltersOpen(false); return; }
       if (selectedEventId) { clearSelection(); return; }
-      if (query.range === 'custom') { patch({ range: '24h', start: null, end: null }); return; }
       if (mobile && sheet !== 'default') setSheet('default');
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [filtersOpen, selectedEventId, query.range, mobile, sheet, clearSelection]);
+  }, [filtersOpen, selectedEventId, drawing, mobile, sheet, clearSelection]);
 
   const sourceChip = !feed.usgsOk ? t('usgs_unavailable') : !feed.emscOk ? t('emsc_unavailable') : null;
   const listDim = feed.refreshing && !feed.firstLoad;
@@ -260,8 +275,12 @@ function Monitor() {
         statusKind={feed.statusKind}
         seconds={feed.seconds}
         stats={stats}
-        range={query.range === 'custom' ? '' : query.range}
-        onRange={(r) => patch({ range: r, start: null, end: null, minmag: ingestFloor(r) })}
+        query={query}
+        onRange={(r) => {
+          setDrawing(false);
+          patch(enterRange(r));
+        }}
+        onChange={(p) => patch(p)}
         onOpenFilters={() => setFiltersOpen((v) => !v)}
         filtersOpen={filtersOpen}
         refreshing={feed.refreshing}
@@ -270,6 +289,15 @@ function Monitor() {
         onToggleStarred={() => setStarredOn((v) => !v)}
         showStarred={!!user}
         sourceChip={sourceChip}
+        drawing={drawing}
+        onToggleDraw={() => {
+          if (query.range !== 'custom') {
+            setDrawing(true);
+            patch(enterRange('custom'));
+            return;
+          }
+          setDrawing((v) => !v);
+        }}
       />
       {filtersOpen && (
         <div style={{ position: 'relative' }}>
@@ -327,9 +355,14 @@ function Monitor() {
       onLocate={locate}
       onMapStyle={(s) => patch({ map: s })}
       onPlates={(on) => patch({ plates: on ? 1 : 0 })}
-      searchBounds={query.minlat != null ? {
-        minLat: query.minlat, maxLat: query.maxlat, minLon: query.minlon, maxLon: query.maxlon,
-      } : null}
+      isDrawing={drawing}
+      onDrawComplete={(b) => {
+        setDrawing(false);
+        patch(applyBboxPatch(b));
+      }}
+      onDrawCancel={() => setDrawing(false)}
+      searchBounds={query.range === 'custom' ? bboxOf(query) : null}
+      onClearBounds={() => patch(clearBboxPatch())}
     />
   );
 

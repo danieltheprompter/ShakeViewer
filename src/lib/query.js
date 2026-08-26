@@ -1,5 +1,8 @@
 /** URL query is the app state. One minmag. Custom is range=custom + start/end. */
 
+import { fmtMag } from './mag.js';
+import { customDefaultWindow, parseQueryInstant } from './time.js';
+
 export const RANGE_FLOORS = {
   '24h': 2.5,
   '7d': 3.5,
@@ -65,7 +68,29 @@ export function clampMinmag(range, minmag) {
   return Math.max(floor, Math.min(9, n));
 }
 
-export function parseQuery(search, pathEventId, theme = 'dark') {
+function parseBboxFields(p) {
+  const raw = p.get('bbox');
+  if (raw) {
+    const parts = raw.split(',').map((s) => Number(String(s).trim()));
+    if (parts.length === 4 && parts.every(Number.isFinite)) {
+      const [west, south, east, north] = parts;
+      return {
+        minlon: west,
+        minlat: south,
+        maxlon: east,
+        maxlat: north,
+      };
+    }
+  }
+  return {
+    minlat: num(p.get('minlat')),
+    maxlat: num(p.get('maxlat')),
+    minlon: num(p.get('minlon')),
+    maxlon: num(p.get('maxlon')),
+  };
+}
+
+export function parseQuery(search, pathEventId, theme = 'dark', now = Date.now()) {
   const p = search instanceof URLSearchParams ? search : new URLSearchParams(search || '');
   const range = RANGES.has(p.get('range')) ? p.get('range') : '24h';
   const depth = DEPTHS.has(p.get('depth')) ? p.get('depth') : 'all';
@@ -73,10 +98,18 @@ export function parseQuery(search, pathEventId, theme = 'dark') {
   const rawMap = p.get('map');
   const map = MAPS.has(rawMap) ? rawMap : defaultMapStyle(theme);
   const minmag = clampMinmag(range, num(p.get('minmag')) ?? ingestFloor(range));
+  const box = parseBboxFields(p);
+  let start = p.get('start') || null;
+  let end = p.get('end') || null;
+  if (range === 'custom' && (!start || !end)) {
+    const d = customDefaultWindow(new Date(now));
+    start = start || d.start;
+    end = end || d.end;
+  }
   return {
     range,
-    start: p.get('start') || null,
-    end: p.get('end') || null,
+    start,
+    end,
     minmag,
     maxmag: num(p.get('maxmag')),
     depth,
@@ -84,11 +117,12 @@ export function parseQuery(search, pathEventId, theme = 'dark') {
     plates: flag(p.get('plates'), 0),
     near: flag(p.get('near'), 0),
     map,
-    minlat: num(p.get('minlat')),
-    maxlat: num(p.get('maxlat')),
-    minlon: num(p.get('minlon')),
-    maxlon: num(p.get('maxlon')),
+    minlat: box.minlat,
+    maxlat: box.maxlat,
+    minlon: box.minlon,
+    maxlon: box.maxlon,
     event: pathEventId || p.get('event') || null,
+    draw: flag(p.get('draw'), 0),
   };
 }
 
@@ -112,11 +146,9 @@ export function serializeQuery(q, { omitDefaults = true, theme = 'dark' } = {}) 
   const themeMap = defaultMapStyle(theme);
   const map = q.map || themeMap;
   if (!omitDefaults || map === 'satellite' || map !== themeMap) p.set('map', map);
-  if (q.minlat != null && q.maxlat != null && q.minlon != null && q.maxlon != null) {
-    p.set('minlat', String(q.minlat));
-    p.set('maxlat', String(q.maxlat));
-    p.set('minlon', String(q.minlon));
-    p.set('maxlon', String(q.maxlon));
+  if (range === 'custom') {
+    const b = bboxOf(q);
+    if (b) p.set('bbox', `${b.minLon},${b.minLat},${b.maxLon},${b.maxLat}`);
   }
   return p;
 }
@@ -127,11 +159,51 @@ export function queryString(q, theme = 'dark') {
 }
 
 export function bboxOf(q) {
-  if (q.minlat == null || q.maxlat == null || q.minlon == null || q.maxlon == null) return null;
+  if (!q || q.minlat == null || q.maxlat == null || q.minlon == null || q.maxlon == null) return null;
   return {
     minLat: Math.min(q.minlat, q.maxlat),
     maxLat: Math.max(q.minlat, q.maxlat),
     minLon: Math.min(q.minlon, q.maxlon),
     maxLon: Math.max(q.minlon, q.maxlon),
   };
+}
+
+export function clearBboxPatch() {
+  return { minlat: null, maxlat: null, minlon: null, maxlon: null };
+}
+
+export function enterRange(range, now = new Date()) {
+  if (range === 'custom') {
+    const { start, end } = customDefaultWindow(now);
+    return { range: 'custom', start, end, minmag: ingestFloor('custom'), ...clearBboxPatch() };
+  }
+  return { range, start: null, end: null, minmag: ingestFloor(range), ...clearBboxPatch() };
+}
+
+export function applyBboxPatch(b) {
+  if (!b) return clearBboxPatch();
+  return {
+    minlat: b.minLat,
+    maxlat: b.maxLat,
+    minlon: b.minLon,
+    maxlon: b.maxLon,
+  };
+}
+
+/** Selected Custom chip: `Aug 18–25 · M4.0+` plus ` · area` when a bbox is set. */
+export function customChipLabel(query, lang = 'en', areaWord = 'area') {
+  const start = parseQueryInstant(query?.start) || new Date();
+  const end = parseQueryInstant(query?.end) || new Date();
+  const mag = `M${fmtMag(query?.minmag ?? 4)}+`;
+  const startMonth = start.toLocaleDateString(lang, { month: 'short' });
+  let dates;
+  if (start.getFullYear() === end.getFullYear() && start.getMonth() === end.getMonth()) {
+    if (start.getDate() === end.getDate()) dates = `${startMonth} ${start.getDate()}`;
+    else dates = `${startMonth} ${start.getDate()}–${end.getDate()}`;
+  } else {
+    const endFmt = end.toLocaleDateString(lang, { month: 'short', day: 'numeric' });
+    dates = `${startMonth} ${start.getDate()}–${endFmt}`;
+  }
+  const area = bboxOf(query) ? ` · ${areaWord}` : '';
+  return `${dates} · ${mag}${area}`;
 }

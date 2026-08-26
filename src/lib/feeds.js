@@ -1,5 +1,6 @@
 import { ingestFloor } from './query.js';
 import { mergeQuakes, normalizeEmsc, normalizeUsgs } from './quake.js';
+import { fdsnTimeRange } from './time.js';
 
 export const USGS_SUMMARY = {
   '24h': 'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_day.geojson',
@@ -110,10 +111,11 @@ export function emscUrl({ startIso, endIso, minmag, limit = HARD_LIMIT, bbox }) 
 
 function usgsFdsnUrl({ start, end, minM, limit = HARD_LIMIT, bbox }) {
   const cap = Math.min(Math.max(1, limit), MAX_LIMIT);
+  const { startIso, endIso } = fdsnTimeRange(start, end);
   const q = new URL(USGS_FDSN);
   q.searchParams.set('format', 'geojson');
-  q.searchParams.set('starttime', start);
-  q.searchParams.set('endtime', `${end}T23:59:59`);
+  q.searchParams.set('starttime', startIso);
+  q.searchParams.set('endtime', endIso);
   q.searchParams.set('minmagnitude', String(minM));
   q.searchParams.set('limit', String(cap));
   q.searchParams.set('offset', '1');
@@ -199,10 +201,11 @@ export async function fetchLive(range, { signal, skipUsgs = false, skipEmsc = fa
 
 export async function fetchCustom({ start, end, minM, bbox, signal, skipUsgs = false, skipEmsc = false }) {
   const minmag = minM ?? 4.0;
-  const usgsArgs = { start, end, minM: minmag, limit: HARD_LIMIT, bbox };
+  const { startIso, endIso } = fdsnTimeRange(start, end);
+  const usgsArgs = { start: startIso, end: endIso, minM: minmag, limit: HARD_LIMIT, bbox };
   const emscArgs = {
-    startIso: `${start}T00:00:00`,
-    endIso: `${end}T23:59:59`,
+    startIso,
+    endIso,
     minmag,
     limit: HARD_LIMIT,
     bbox,

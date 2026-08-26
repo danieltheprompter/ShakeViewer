@@ -58,3 +58,69 @@ export function localTimeZoneName(lang = 'en') {
 export function isoDate(d = new Date()) {
   return new Date(d).toISOString().slice(0, 10);
 }
+
+/** Calendar YYYY-MM-DD in the user's timezone (not UTC). */
+export function localDateString(d = new Date()) {
+  const dt = d instanceof Date ? d : new Date(d);
+  if (Number.isNaN(dt.getTime())) return '';
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth() + 1).padStart(2, '0');
+  const day = String(dt.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+
+export function parseQueryInstant(iso) {
+  if (!iso) return null;
+  if (DATE_ONLY.test(iso)) {
+    const [y, m, d] = iso.split('-').map(Number);
+    return new Date(y, m - 1, d);
+  }
+  const t = Date.parse(iso);
+  return Number.isNaN(t) ? null : new Date(t);
+}
+
+export function isoToLocalDate(iso) {
+  const d = parseQueryInstant(iso);
+  return d ? localDateString(d) : '';
+}
+
+/** Start of that local calendar day as UTC ISO. Date-only query strings stay date-only until rewritten. */
+export function localDateToStartIso(yyyyMmDd) {
+  if (!yyyyMmDd || !DATE_ONLY.test(yyyyMmDd)) return yyyyMmDd || null;
+  const [y, m, d] = yyyyMmDd.split('-').map(Number);
+  return new Date(y, m - 1, d, 0, 0, 0, 0).toISOString();
+}
+
+/** End of that local calendar day, or now if the day is today. */
+export function localDateToEndIso(yyyyMmDd, now = new Date()) {
+  if (!yyyyMmDd || !DATE_ONLY.test(yyyyMmDd)) return yyyyMmDd || null;
+  const [y, m, d] = yyyyMmDd.split('-').map(Number);
+  const end = new Date(y, m - 1, d, 23, 59, 59, 999);
+  const n = now instanceof Date ? now : new Date(now);
+  if (localDateString(n) === yyyyMmDd) return n.toISOString();
+  return end.toISOString();
+}
+
+export function customDefaultWindow(now = new Date()) {
+  const end = now instanceof Date ? now : new Date(now);
+  const start = new Date(end.getTime() - 7 * 86400000);
+  return { start: start.toISOString(), end: end.toISOString() };
+}
+
+/** FDSN start/end: pass through ISO, expand date-only, default now−7d → now. */
+export function fdsnTimeRange(start, end, now = Date.now()) {
+  const fallback = customDefaultWindow(new Date(now));
+  const startIso = !start
+    ? fallback.start
+    : start.includes('T')
+      ? start
+      : `${start}T00:00:00`;
+  const endIso = !end
+    ? fallback.end
+    : end.includes('T')
+      ? end
+      : `${end}T23:59:59`;
+  return { startIso, endIso };
+}

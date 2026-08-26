@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { haversineKm } from './geo.js';
 import { fmtMag } from './mag.js';
-import { clampMinmag, DEFAULT_QUERY, ingestFloor, parseQuery, serializeQuery } from './query.js';
+import { clampMinmag, customChipLabel, DEFAULT_QUERY, ingestFloor, parseQuery, serializeQuery } from './query.js';
+import { fdsnTimeRange } from './time.js';
 import {
   depthKmFromFeature,
   eventsMatch,
@@ -226,5 +227,79 @@ describe('parseQuery', () => {
     expect(parseQuery('event=fromquery', 'frompath').event).toBe('frompath');
     expect(serializeQuery({ ...DEFAULT_QUERY, event: 'us1' }).get('event')).toBe('us1');
     expect(serializeQuery(DEFAULT_QUERY).get('event')).toBeNull();
+  });
+  it('parses bbox=west,south,east,north and still honors minlat quartet', () => {
+    const boxed = parseQuery('range=custom&start=2026-08-18T00:00:00.000Z&end=2026-08-25T00:00:00.000Z&minmag=4&bbox=-30,10,-10,20');
+    expect(boxed.minlon).toBe(-30);
+    expect(boxed.minlat).toBe(10);
+    expect(boxed.maxlon).toBe(-10);
+    expect(boxed.maxlat).toBe(20);
+    const legacy = parseQuery('range=custom&start=2026-08-18&end=2026-08-25&minlat=10&maxlat=20&minlon=-30&maxlon=-10');
+    expect(legacy.minlat).toBe(10);
+    expect(legacy.maxlon).toBe(-10);
+  });
+  it('writes bbox= and does not write minlat quartet or draw', () => {
+    const p = serializeQuery({
+      ...DEFAULT_QUERY,
+      range: 'custom',
+      start: '2026-08-18T00:00:00.000Z',
+      end: '2026-08-25T12:00:00.000Z',
+      minmag: 4,
+      minlat: 10,
+      maxlat: 20,
+      minlon: -30,
+      maxlon: -10,
+      draw: 1,
+    });
+    expect(p.get('range')).toBe('custom');
+    expect(p.get('start')).toBe('2026-08-18T00:00:00.000Z');
+    expect(p.get('end')).toBe('2026-08-25T12:00:00.000Z');
+    expect(p.get('bbox')).toBe('-30,10,-10,20');
+    expect(p.get('minlat')).toBeNull();
+    expect(p.get('maxlat')).toBeNull();
+    expect(p.get('minlon')).toBeNull();
+    expect(p.get('maxlon')).toBeNull();
+    expect(p.get('draw')).toBeNull();
+  });
+  it('parses draw=1 but does not keep it as query state to serialize', () => {
+    expect(parseQuery('range=custom&draw=1').draw).toBe(1);
+    expect(serializeQuery(parseQuery('range=custom&draw=1')).get('draw')).toBeNull();
+  });
+  it('fills a 7-day custom window when start/end are missing', () => {
+    const now = Date.parse('2026-08-25T12:00:00.000Z');
+    const q = parseQuery('range=custom', null, 'dark', now);
+    expect(q.range).toBe('custom');
+    expect(q.minmag).toBe(4);
+    expect(Date.parse(q.end)).toBe(now);
+    expect(Date.parse(q.start)).toBe(now - 7 * 86400000);
+  });
+  it('labels the custom chip as the query, with area when boxed', () => {
+    expect(customChipLabel({
+      start: '2026-08-18',
+      end: '2026-08-25',
+      minmag: 4,
+    }, 'en')).toBe('Aug 18–25 · M4.0+');
+    expect(customChipLabel({
+      start: '2026-08-18',
+      end: '2026-08-25',
+      minmag: 4,
+      minlat: 1,
+      maxlat: 2,
+      minlon: 3,
+      maxlon: 4,
+    }, 'en', 'area')).toBe('Aug 18–25 · M4.0+ · area');
+  });
+});
+
+describe('fdsnTimeRange', () => {
+  it('expands date-only and passes ISO through', () => {
+    expect(fdsnTimeRange('2026-08-18', '2026-08-25')).toEqual({
+      startIso: '2026-08-18T00:00:00',
+      endIso: '2026-08-25T23:59:59',
+    });
+    expect(fdsnTimeRange('2026-08-18T01:00:00.000Z', '2026-08-25T02:00:00.000Z')).toEqual({
+      startIso: '2026-08-18T01:00:00.000Z',
+      endIso: '2026-08-25T02:00:00.000Z',
+    });
   });
 });

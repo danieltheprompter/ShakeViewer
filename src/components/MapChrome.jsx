@@ -55,7 +55,8 @@ function plateHalo(mapStyle) {
 
 export function MapChrome({
   quakes, selectedId, selectedQuake, onSelect, onClear, mapStyle, plates, theme,
-  userLocation, onLocate, onMapStyle, onPlates, isDrawing, onDrawComplete, searchBounds,
+  userLocation, onLocate, onMapStyle, onPlates, isDrawing, onDrawComplete, onDrawCancel,
+  searchBounds, onClearBounds,
 }) {
   const ref = useRef(null);
   const mapRef = useRef(null);
@@ -67,18 +68,26 @@ export function MapChrome({
   const platesGeoRef = useRef(null);
   const userRef = useRef(null);
   const drawRef = useRef(null);
-  const drawStart = useRef(null);
+  const previewRef = useRef(null);
   const popupRef = useRef(null);
   const popupEl = useRef(null);
   const popupRoot = useRef(null);
   const onSelectRef = useRef(onSelect);
   const onClearRef = useRef(onClear);
+  const onDrawCompleteRef = useRef(onDrawComplete);
+  const onDrawCancelRef = useRef(onDrawCancel);
+  const onClearBoundsRef = useRef(onClearBounds);
+  const isDrawingRef = useRef(!!isDrawing);
   const wrapRef = useRef(null);
   const flownRef = useRef(null);
   const [menuOpen, setMenuOpen] = useState(false);
 
   onSelectRef.current = onSelect;
   onClearRef.current = onClear;
+  onDrawCompleteRef.current = onDrawComplete;
+  onDrawCancelRef.current = onDrawCancel;
+  onClearBoundsRef.current = onClearBounds;
+  isDrawingRef.current = !!isDrawing;
 
   useEffect(() => {
     if (!ref.current || mapRef.current) return;
@@ -116,8 +125,9 @@ export function MapChrome({
       autoPanPadding: [56, 56],
     });
     map.on('click', (e) => {
+      if (isDrawingRef.current) return;
       const t = e.originalEvent?.target;
-      if (t && (t.closest?.('.leaflet-interactive') || t.closest?.('.sv-map-popup') || t.closest?.('.leaflet-popup'))) return;
+      if (t && (t.closest?.('.leaflet-interactive') || t.closest?.('.sv-map-popup') || t.closest?.('.leaflet-popup') || t.closest?.('.sv-bbox-x'))) return;
       onClearRef.current?.();
     });
     const invalidate = () => map.invalidateSize();
@@ -196,6 +206,10 @@ export function MapChrome({
       if (!m) {
         m = L.circleMarker([q.lat, q.lon], markerStyle(q, selected, theme));
         m.on('click', (e) => {
+          if (isDrawingRef.current) {
+            L.DomEvent.stop(e);
+            return;
+          }
           L.DomEvent.stop(e);
           onSelectRef.current?.(m._quake);
         });
@@ -262,35 +276,181 @@ export function MapChrome({
     if (!drawRef.current) return;
     drawRef.current.clearLayers();
     if (!searchBounds) return;
-    L.rectangle([[searchBounds.minLat, searchBounds.minLon], [searchBounds.maxLat, searchBounds.maxLon]], {
-      color: '#E23B3B', weight: 1, dashArray: '4 4', fillOpacity: 0.06, interactive: false,
-    }).addTo(drawRef.current);
+    const color = liveColor();
+    const rect = L.rectangle(
+      [[searchBounds.minLat, searchBounds.minLon], [searchBounds.maxLat, searchBounds.maxLon]],
+      {
+        color,
+        weight: 1.5,
+        dashArray: '6 4',
+        fillColor: color,
+        fillOpacity: 0.10,
+        interactive: false,
+      },
+    );
+    rect.addTo(drawRef.current);
+    const x = L.marker([searchBounds.maxLat, searchBounds.maxLon], {
+      icon: L.divIcon({
+        className: 'sv-bbox-x',
+        html: `<button type="button" aria-label="${t('clear_boundary')}">×</button>`,
+        iconSize: [18, 18],
+        iconAnchor: [0, 18],
+      }),
+      interactive: true,
+      keyboard: false,
+      zIndexOffset: 800,
+    });
+    x.on('click', (e) => {
+      L.DomEvent.stop(e);
+      onClearBoundsRef.current?.();
+    });
+    x.addTo(drawRef.current);
+    const el = x.getElement();
+    if (el) L.DomEvent.disableClickPropagation(el);
   }, [searchBounds]);
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map) return;
-    if (!isDrawing) {
+    if (!map) return undefined;
+    const container = map.getContainer();
+
+    const enableNav = () => {
       map.dragging.enable();
+      map.scrollWheelZoom.enable();
+      map.doubleClickZoom.enable();
+      map.touchZoom.enable();
+      map.boxZoom.enable();
+    };
+
+    if (!isDrawing) {
+      container.classList.remove('sv-map-drawing', 'sv-map-drawing-drag');
+      container.style.cursor = '';
+      enableNav();
+      previewRef.current?.remove();
+      previewRef.current = null;
       return undefined;
     }
+
+    container.classList.add('sv-map-drawing');
+    container.style.cursor = 'crosshair';
     map.dragging.disable();
-    const onDown = (e) => { drawStart.current = e.latlng; };
-    const onUp = (e) => {
-      if (!drawStart.current) return;
-      const s = drawStart.current;
-      drawStart.current = null;
-      onDrawComplete?.({
-        minLat: Math.min(s.lat, e.latlng.lat),
-        maxLat: Math.max(s.lat, e.latlng.lat),
-        minLon: Math.min(s.lng, e.latlng.lng),
-        maxLon: Math.max(s.lng, e.latlng.lng),
-      });
+    map.boxZoom.disable();
+
+    let start = null;
+    let dragging = false;
+    const rectOpts = () => {
+      const color = liveColor();
+      return {
+        color,
+        weight: 1.5,
+        dashArray: '6 4',
+        fillColor: color,
+        fillOpacity: 0.10,
+        interactive: false,
+      };
     };
+
+    const disableZoom = () => {
+      map.scrollWheelZoom.disable();
+      map.doubleClickZoom.disable();
+      map.touchZoom.disable();
+    };
+    const enableZoom = () => {
+      map.scrollWheelZoom.enable();
+      map.doubleClickZoom.enable();
+      map.touchZoom.enable();
+    };
+
+    const clearPreview = () => {
+      if (previewRef.current) {
+        previewRef.current.remove();
+        previewRef.current = null;
+      }
+    };
+
+    const ignoredTarget = (t) => t?.closest?.('.map-chrome, .sv-bbox-x, .leaflet-control, .sv-draw-hint');
+
+    const onDown = (e) => {
+      if (e.originalEvent && e.originalEvent.button != null && e.originalEvent.button !== 0) return;
+      if (ignoredTarget(e.originalEvent?.target)) return;
+      start = e.latlng;
+      dragging = true;
+      disableZoom();
+      container.classList.add('sv-map-drawing-drag');
+      L.DomEvent.preventDefault(e.originalEvent);
+    };
+
+    const boundsOf = (a, b) => L.latLngBounds(a, b);
+
+    const onMove = (e) => {
+      if (!dragging || !start) return;
+      const b = boundsOf(start, e.latlng);
+      if (!previewRef.current) {
+        previewRef.current = L.rectangle(b, rectOpts()).addTo(map);
+      } else {
+        previewRef.current.setBounds(b);
+        previewRef.current.setStyle(rectOpts());
+      }
+    };
+
+    const finish = (latlng) => {
+      if (!dragging || !start) return;
+      const s = start;
+      dragging = false;
+      start = null;
+      enableZoom();
+      container.classList.remove('sv-map-drawing-drag');
+      clearPreview();
+      if (!latlng) return;
+      const minLat = Math.min(s.lat, latlng.lat);
+      const maxLat = Math.max(s.lat, latlng.lat);
+      const minLon = Math.min(s.lng, latlng.lng);
+      const maxLon = Math.max(s.lng, latlng.lng);
+      if (Math.abs(maxLat - minLat) < 1e-5 && Math.abs(maxLon - minLon) < 1e-5) return;
+      onDrawCompleteRef.current?.({ minLat, maxLat, minLon, maxLon });
+    };
+
+    const onDocMove = (ev) => {
+      if (!dragging || !start) return;
+      onMove({ latlng: map.mouseEventToLatLng(ev) });
+    };
+    const onDocUp = (ev) => {
+      if (!dragging || !start) return;
+      finish(map.mouseEventToLatLng(ev));
+    };
+
+    const onEsc = (e) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      e.stopPropagation();
+      dragging = false;
+      start = null;
+      enableZoom();
+      container.classList.remove('sv-map-drawing-drag');
+      clearPreview();
+      onDrawCancelRef.current?.();
+    };
+
     map.on('mousedown', onDown);
-    map.on('mouseup', onUp);
-    return () => { map.off('mousedown', onDown); map.off('mouseup', onUp); map.dragging.enable(); };
-  }, [isDrawing, onDrawComplete]);
+    map.on('mousemove', onMove);
+    document.addEventListener('mousemove', onDocMove);
+    document.addEventListener('mouseup', onDocUp);
+    window.addEventListener('keydown', onEsc, true);
+
+    return () => {
+      map.off('mousedown', onDown);
+      map.off('mousemove', onMove);
+      document.removeEventListener('mousemove', onDocMove);
+      document.removeEventListener('mouseup', onDocUp);
+      window.removeEventListener('keydown', onEsc, true);
+      dragging = false;
+      start = null;
+      clearPreview();
+      container.classList.remove('sv-map-drawing', 'sv-map-drawing-drag');
+      container.style.cursor = '';
+      enableNav();
+    };
+  }, [isDrawing]);
 
   useEffect(() => {
     if (!menuOpen) return undefined;
@@ -315,6 +475,7 @@ export function MapChrome({
   return (
     <div className="sv-map">
       <div ref={ref} style={{ position: 'absolute', inset: 0 }} />
+      {isDrawing && <div className="sv-draw-hint">{t('draw_hint')}</div>}
       <div className="map-chrome">
         <div className="map-chrome-tr">
           <button

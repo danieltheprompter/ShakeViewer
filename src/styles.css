@@ -156,6 +156,68 @@ a { color: var(--text); }
 .sv-querybar-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .sv-querybar-stats { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sv-querybar-chips { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.sv-custom-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px 10px;
+}
+.sv-custom-field { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.sv-custom-field .sv-input { width: auto; min-width: 0; }
+.sv-custom-mag { flex: 1 1 140px; min-width: 140px; }
+.sv-custom-mag-row { display: flex; align-items: center; gap: 8px; }
+.sv-custom-mag-row input[type="range"] { flex: 1; min-width: 72px; }
+.sv-text-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  min-height: 32px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.sv-text-btn.on { color: var(--live); }
+.sv-draw-hint {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 500;
+  pointer-events: none;
+  font-size: 12px;
+  font-weight: 500;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 10px;
+  white-space: nowrap;
+  box-shadow: var(--shadow);
+}
+.sv-map-drawing,
+.sv-map-drawing .leaflet-container { cursor: crosshair !important; }
+.sv-map-drawing .leaflet-overlay-pane,
+.sv-map-drawing .leaflet-marker-pane { pointer-events: none; }
+.sv-bbox-x {
+  pointer-events: auto !important;
+  background: none !important;
+  border: none !important;
+}
+.sv-bbox-x button {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  font-size: 12px;
+  line-height: 16px;
+  cursor: pointer;
+}
 .sv-progress {
   height: 2px;
   background: var(--border);
@@ -179,7 +241,7 @@ a { color: var(--text); }
 .sv-list-scroll {
   flex: 1;
   overflow-y: auto;
-  min-height: 0;
+  min-height: calc(var(--row-h) * 6);
 }
 .sv-list-scroll.dim { opacity: 0.5; }
 .sv-rows { min-height: calc(var(--row-h) * 6); }

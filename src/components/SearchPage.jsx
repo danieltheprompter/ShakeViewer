@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { localTimeZoneName, isoDate } from '../lib/time.js';
+import { customDefaultWindow, isoToLocalDate, localDateToEndIso, localDateToStartIso, localTimeZoneName } from '../lib/time.js';
 import { getLang, t } from '../lib/i18n.js';
 import { queryString } from '../lib/query.js';
 import { Icon } from './Icons.jsx';
@@ -8,10 +8,11 @@ import { Icon } from './Icons.jsx';
 export function SearchPage({ theme }) {
   const nav = useNavigate();
   const tz = localTimeZoneName(getLang());
+  const defaults = customDefaultWindow();
   const [place, setPlace] = useState('');
   const [hits, setHits] = useState([]);
-  const [start, setStart] = useState(() => isoDate(new Date(Date.now() - 86400000)));
-  const [end, setEnd] = useState(() => isoDate());
+  const [start, setStart] = useState(() => isoToLocalDate(defaults.start));
+  const [end, setEnd] = useState(() => isoToLocalDate(defaults.end));
   const [minmag, setMinmag] = useState(4.0);
   const [maxmag, setMaxmag] = useState('');
   const [depth, setDepth] = useState('all');
@@ -52,31 +53,50 @@ export function SearchPage({ theme }) {
     setHits([]);
   };
 
-  const submit = (e) => {
-    e.preventDefault();
+  const customQuery = (withBbox) => {
     const q = {
       range: 'custom',
-      start,
-      end,
+      start: localDateToStartIso(start),
+      end: localDateToEndIso(end),
       minmag,
       maxmag: maxmag === '' ? null : Number(maxmag),
       depth,
       sort: 'time',
       map: theme === 'light' ? 'light' : 'dark',
     };
-    if (bbox) {
+    if (withBbox && bbox) {
       q.minlat = bbox.minLat;
       q.maxlat = bbox.maxLat;
       q.minlon = bbox.minLon;
       q.maxlon = bbox.maxLon;
     }
-    nav(`/${queryString(q, theme)}`);
+    return q;
+  };
+
+  const submit = (e) => {
+    e.preventDefault();
+    nav(`/${queryString(customQuery(true), theme)}`);
+  };
+
+  const drawOnMap = () => {
+    const { start: s, end: e } = customDefaultWindow();
+    const q = {
+      range: 'custom',
+      start: s,
+      end: e,
+      minmag: 4.0,
+      map: theme === 'light' ? 'light' : 'dark',
+    };
+    nav(`/${queryString(q, theme)}&draw=1`);
   };
 
   return (
     <div className="search-page">
       <h1 className="header-brand" style={{ marginBottom: 8 }}>{t('custom_search')}</h1>
       <p className="meta">{t('timezone', { tz })}</p>
+      <p>
+        <button type="button" className="sv-text-btn" onClick={drawOnMap}>{t('draw_on_map')}</button>
+      </p>
       <form onSubmit={submit}>
         <div className="field">
           <label className="label">{t('place_search')}</label>
