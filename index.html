@@ -1,30 +1,28 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark" data-accent="cyan" data-type="serif" data-density="comfortable">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>ShakeViewer — Real-Time Global Earthquake Tracker &amp; Seismic Activity Map</title>
-  <meta name="description" content="Track real-time earthquake activity worldwide with ShakeViewer. Monitor global seismic events, view magnitude, depth, and location data from USGS and EMSC sources on an interactive map.">
+  <title>ShakeViewer — Live earthquake monitor</title>
+  <meta name="description" content="Live global earthquake monitor. USGS and EMSC on a map and list. Informational — not an official alert.">
   <meta name="robots" content="index, follow">
   <meta name="author" content="ShakeViewer">
-  <meta name="theme-color" content="#0a0d12">
+  <meta name="theme-color" content="#101114">
   <meta name="color-scheme" content="dark light">
   <link rel="canonical" href="https://shakeviewer.com/">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-  <link rel="icon" href="/favicon.ico" sizes="32x32">
+  <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="manifest" href="/manifest.json">
-  <meta property="og:title" content="ShakeViewer — Real-Time Global Earthquake Tracker">
-  <meta property="og:description" content="Monitor global seismic activity in real time. View earthquake magnitude, depth, and location on an interactive map with data from USGS and EMSC.">
+  <meta property="og:title" content="ShakeViewer — Live earthquake monitor">
+  <meta property="og:description" content="Monitor global seismic activity in real time with USGS and EMSC.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://shakeviewer.com/">
   <meta property="og:site_name" content="ShakeViewer">
   <meta property="og:image" content="https://shakeviewer.com/og-image.png">
-  <meta property="og:image:width" content="1200">
-  <meta property="og:image:height" content="630">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="ShakeViewer — Real-Time Global Earthquake Tracker">
-  <meta name="twitter:description" content="Monitor global seismic activity in real time with data from USGS and EMSC.">
+  <meta name="twitter:title" content="ShakeViewer — Live earthquake monitor">
+  <meta name="twitter:description" content="Monitor global seismic activity in real time with USGS and EMSC.">
   <meta name="twitter:image" content="https://shakeviewer.com/og-image.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -33,7 +31,7 @@
   <link rel="preconnect" href="https://earthquake.usgs.gov">
   <link rel="preconnect" href="https://www.seismicportal.eu">
   <link rel="preconnect" href="https://basemaps.cartocdn.com">
-  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+JP:wght@400;500;600&family=Noto+Sans:wght@400;500;600&family=Noto+Sans+JP:wght@400;500;600&display=swap" rel="stylesheet">
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -41,23 +39,13 @@
       {
         "@type": "WebApplication",
         "name": "ShakeViewer",
-        "description": "Real-time global earthquake tracker and seismic activity map. Monitor earthquakes worldwide with data from USGS and EMSC.",
+        "description": "Live global earthquake monitor with USGS and EMSC data.",
         "url": "https://shakeviewer.com/",
-        "applicationCategory": "Science",
+        "applicationCategory": "ScienceApplication",
         "operatingSystem": "Web",
         "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
       },
-      { "@type": "Organization", "name": "ShakeViewer", "url": "https://shakeviewer.com/", "email": "danieltheprompter@gmail.com" },
-      {
-        "@type": "FAQPage",
-        "mainEntity": [
-          { "@type": "Question", "name": "How often is the earthquake data updated?", "acceptedAnswer": { "@type": "Answer", "text": "ShakeViewer refreshes earthquake data every 60 seconds in the 24-hour view and every 5 minutes for the 7-day and 30-day views." } },
-          { "@type": "Question", "name": "What does earthquake magnitude mean?", "acceptedAnswer": { "@type": "Answer", "text": "Earthquake magnitude measures the energy released during a seismic event. The moment magnitude scale (Mw) is logarithmic — each whole number increase represents roughly 32 times more energy released." } },
-          { "@type": "Question", "name": "What is the difference between earthquake depth categories?", "acceptedAnswer": { "@type": "Answer", "text": "Shallow earthquakes occur at depths less than 70 km and typically cause the most surface damage. Intermediate earthquakes range from 70–300 km deep, while deep earthquakes occur below 300 km." } },
-          { "@type": "Question", "name": "Where do most earthquakes occur?", "acceptedAnswer": { "@type": "Answer", "text": "Most earthquakes occur along tectonic plate boundaries, especially around the Pacific Ring of Fire. ShakeViewer can display tectonic plate boundary overlays." } },
-          { "@type": "Question", "name": "How can I search for historical earthquakes?", "acceptedAnswer": { "@type": "Answer", "text": "Use ShakeViewer's Custom search mode to set a date range, minimum magnitude, and optionally draw a geographic boundary on the map." } }
-        ]
-      }
+      { "@type": "Organization", "name": "ShakeViewer", "url": "https://shakeviewer.com/", "email": "danieltheprompter@gmail.com" }
     ]
   }
   </script>
@@ -65,11 +53,10 @@
 <body>
   <a href="#main-content" class="skip-link">Skip to map and list</a>
   <noscript>
-    <div style="padding: 40px; text-align: center; font-family: sans-serif;">
+    <div style="padding: 40px; text-align: center; font-family: 'IBM Plex Sans', sans-serif;">
       <h1>ShakeViewer requires JavaScript</h1>
-      <p>ShakeViewer is an interactive real-time earthquake tracker. Please enable JavaScript to view the live seismic data map.</p>
-      <p>Data sources: <a href="https://earthquake.usgs.gov/">USGS</a> · <a href="https://www.seismicportal.eu/">EMSC</a></p>
-      <p>Informational — not an official alert. Support: <a href="mailto:danieltheprompter@gmail.com">danieltheprompter@gmail.com</a></p>
+      <p>Informational — not an official alert. USGS · EMSC</p>
+      <p>Support: <a href="mailto:danieltheprompter@gmail.com">danieltheprompter@gmail.com</a></p>
     </div>
   </noscript>
   <div id="root"></div>
