@@ -121,7 +121,7 @@ export function MapChrome({
       autoClose: false,
       closeOnEscapeKey: false,
       className: 'sv-map-popup',
-      maxWidth: 240,
+      maxWidth: 280,
       minWidth: 0,
       autoPan: true,
       autoPanPadding: [56, 56],
@@ -498,14 +498,14 @@ export function MapChrome({
         <div className="map-chrome-tr">
           <button
             type="button"
-            className={`sv-btn map-layers-btn${plates ? ' on' : ''}`}
+            className="map-plates-toggle"
             title={t('plate_boundaries')}
             aria-label={t('plate_boundaries')}
             aria-pressed={!!plates}
             onClick={() => onPlates(!plates)}
           >
-            {!!plates && <i className="map-plates-dot" />}
-            {t('plates')}
+            <span>{t('plate_boundaries')}</span>
+            <span className={`switch${plates ? ' on' : ''}`} aria-hidden="true"><i /></span>
           </button>
           <div className="map-layers" ref={wrapRef}>
             <button
