@@ -7,4 +7,11 @@ export default defineConfig({
     assetsDir: 'assets',
     sourcemap: false,
   },
+  test: {
+    environment: 'node',
+  },
+  server: {
+    host: true,
+    port: 5173,
+  },
 });

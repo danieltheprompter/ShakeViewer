@@ -61,5 +61,5 @@ for name, size in [("favicon-32.png", 32), ("apple-touch-icon.png", 180)]:
     open(os.path.join(OUT, name), "wb").write(png(size, size, icon))
 open(os.path.join(OUT, "icons", "icon-192.png"), "wb").write(png(192, 192, icon))
 open(os.path.join(OUT, "icons", "icon-512.png"), "wb").write(png(512, 512, icon))
-open(os.path.join(OUT, "og.png"), "wb").write(png(1200, 630, og))
+open(os.path.join(OUT, "og-image.png"), "wb").write(png(1200, 630, og))
 print("wrote icons")
