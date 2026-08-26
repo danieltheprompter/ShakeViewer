@@ -41,6 +41,18 @@ function styleLabel(mapStyle) {
   return t('style_dark');
 }
 
+/** Geology gray by map style — not mag, not --live, not chrome theme. */
+function plateStroke(mapStyle) {
+  if (mapStyle === 'light') return { color: '#3E4754', weight: 1.25, opacity: 0.55 };
+  if (mapStyle === 'satellite') return { color: '#F4F6F8', weight: 1.5, opacity: 0.90 };
+  return { color: '#C5CDD6', weight: 1.25, opacity: 0.60 };
+}
+
+function plateHalo(mapStyle) {
+  if (mapStyle !== 'satellite') return null;
+  return { color: '#111318', weight: 3, opacity: 0.40 };
+}
+
 export function MapChrome({
   quakes, selectedId, selectedQuake, onSelect, onClear, mapStyle, plates, theme,
   userLocation, onLocate, onMapStyle, onPlates, isDrawing, onDrawComplete, searchBounds,
@@ -51,6 +63,8 @@ export function MapChrome({
   const markersRef = useRef(null);
   const markersById = useRef(new Map());
   const platesRef = useRef(null);
+  const platesHaloRef = useRef(null);
+  const platesGeoRef = useRef(null);
   const userRef = useRef(null);
   const drawRef = useRef(null);
   const drawStart = useRef(null);
@@ -78,6 +92,9 @@ export function MapChrome({
     });
     map.zoomControl.setPosition('topleft');
     map.attributionControl.setPosition('bottomleft');
+    map.createPane('platesPane');
+    map.getPane('platesPane').style.zIndex = 350;
+    map.getPane('platesPane').style.pointerEvents = 'none';
     const spec = TILES[mapStyle] || TILES.dark;
     tilesRef.current = L.tileLayer(spec.url, { attribution: spec.attr, subdomains: 'abcd', maxZoom: 19 }).addTo(map);
     markersRef.current = L.layerGroup().addTo(map);
@@ -129,22 +146,39 @@ export function MapChrome({
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map) return;
-    if (platesRef.current) { map.removeLayer(platesRef.current); platesRef.current = null; }
-    if (!plates) return;
+    if (!map) return undefined;
+    const clear = () => {
+      if (platesHaloRef.current) { map.removeLayer(platesHaloRef.current); platesHaloRef.current = null; }
+      if (platesRef.current) { map.removeLayer(platesRef.current); platesRef.current = null; }
+    };
+    if (!plates) {
+      clear();
+      return undefined;
+    }
     let cancelled = false;
+    const paint = (geo) => {
+      if (cancelled || !mapRef.current) return;
+      clear();
+      const line = { pane: 'platesPane', interactive: false };
+      const halo = plateHalo(mapStyle);
+      if (halo) {
+        platesHaloRef.current = L.geoJSON(geo, { ...line, style: { ...halo, fill: false } }).addTo(mapRef.current);
+      }
+      platesRef.current = L.geoJSON(geo, { ...line, style: { ...plateStroke(mapStyle), fill: false } }).addTo(mapRef.current);
+    };
+    if (platesGeoRef.current) {
+      paint(platesGeoRef.current);
+      return () => { cancelled = true; };
+    }
     fetch('/plates.json')
       .then((r) => r.json())
       .then((geo) => {
-        if (cancelled || !mapRef.current) return;
-        platesRef.current = L.geoJSON(geo, {
-          style: { color: theme === 'light' ? '#B7BCC6' : '#3A3F48', weight: 1, opacity: 0.85 },
-          interactive: false,
-        }).addTo(mapRef.current);
+        platesGeoRef.current = geo;
+        paint(geo);
       })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, [plates, theme]);
+  }, [plates, mapStyle]);
 
   useEffect(() => {
     if (!markersRef.current) return;
@@ -282,41 +316,46 @@ export function MapChrome({
     <div className="sv-map">
       <div ref={ref} style={{ position: 'absolute', inset: 0 }} />
       <div className="map-chrome">
-        <div className="map-layers" ref={wrapRef}>
+        <div className="map-chrome-tr">
           <button
             type="button"
-            className="sv-btn map-layers-btn"
-            aria-expanded={menuOpen}
-            aria-label={t('layers')}
-            onClick={() => setMenuOpen((v) => !v)}
+            className={`sv-btn map-layers-btn${plates ? ' on' : ''}`}
+            title={t('plate_boundaries')}
+            aria-label={t('plate_boundaries')}
+            aria-pressed={!!plates}
+            onClick={() => onPlates(!plates)}
           >
-            <span className="map-layers-icon">
-              <Icon name="layers" size={16} />
-              {!!plates && <i className="map-layers-dot" />}
-            </span>
-            {styleLabel(mapStyle)}
+            {!!plates && <i className="map-plates-dot" />}
+            {t('plates')}
           </button>
-          {menuOpen && (
-            <div className="map-layers-menu" role="menu">
-              <div className="seg">
-                {['dark', 'light', 'satellite'].map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    className={mapStyle === s ? 'on' : ''}
-                    onClick={() => onMapStyle(s)}
-                  >
-                    {styleLabel(s)}
-                  </button>
-                ))}
+          <div className="map-layers" ref={wrapRef}>
+            <button
+              type="button"
+              className="sv-btn map-layers-btn"
+              aria-expanded={menuOpen}
+              aria-label={t('layers')}
+              onClick={() => setMenuOpen((v) => !v)}
+            >
+              <Icon name="layers" size={16} />
+              {styleLabel(mapStyle)}
+            </button>
+            {menuOpen && (
+              <div className="map-layers-menu" role="menu">
+                <div className="seg">
+                  {['dark', 'light', 'satellite'].map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      className={mapStyle === s ? 'on' : ''}
+                      onClick={() => onMapStyle(s)}
+                    >
+                      {styleLabel(s)}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div className="map-layers-rule" />
-              <button type="button" className="toggle-row map-layers-plates" onClick={() => onPlates(!plates)}>
-                <span className="control">{t('plate_boundaries')}</span>
-                <span className={`switch ${plates ? 'on' : ''}`}><i /></span>
-              </button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
         <div className="map-bottom-right">
           <button className="sv-btn icon map-locate" onClick={onLocate} aria-label={t('locate_me')} title={t('locate_me')}>
