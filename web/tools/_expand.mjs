@@ -1,0 +1,12 @@
+import { chromium, devices } from 'playwright';
+const b = await chromium.launch();
+const ctx = await b.newContext({ ...devices['iPhone 13'], viewport: { width: 390, height: 844 }, colorScheme: 'dark' });
+await ctx.route(/basemaps\.cartocdn\.com/, r => r.continue({ headers: { ...r.request().headers(), referer: 'https://shakeviewer.com/' } }));
+const pg = await ctx.newPage(); await pg.goto('http://localhost:8903/'); await pg.waitForTimeout(6000);
+const g = pg.locator('.sv-sheet-grip');
+const vis = () => pg.evaluate(() => getComputedStyle(document.querySelector('.sv-list-scroll')).visibility);
+console.log('half', await vis()); await g.tap(); await pg.waitForTimeout(600); console.log('full', await vis());
+await g.tap(); await pg.waitForTimeout(600); console.log('peek', await vis());
+await g.tap(); await pg.waitForTimeout(800); console.log('full again', await vis());
+await pg.screenshot({ path: '/workspace/shakeviewer/screens/mobile-fix-after-expanded-390x844.png' });
+await b.close();

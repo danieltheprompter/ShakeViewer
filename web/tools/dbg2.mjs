@@ -1,0 +1,14 @@
+import { chromium } from 'playwright';
+const b = await chromium.launch();
+const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+const p = await ctx.newPage(); const cdp = await ctx.newCDPSession(p);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const touch = (type, x, y) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y, id: 1 }] });
+await p.goto('http://localhost:8080/', { waitUntil: 'networkidle' }); await sleep(1200);
+await p.evaluate(() => { document.querySelector('.sv-sheet .row').click(); window.__ev = []; for (const t of ['pointerdown','pointermove','pointerup','pointercancel','touchstart','touchmove']) document.addEventListener(t, e => window.__ev.push(t + ':' + (e.target.className||e.target.tagName).toString().slice(0,30) + ':' + Math.round(e.timeStamp)), true); });
+await sleep(1100);
+const hy = await p.evaluate(() => { const r = document.querySelector('.sv-sheet .qd-header').getBoundingClientRect(); return r.y + r.height / 2; });
+await touch('touchStart', 300, hy); for (let i = 1; i <= 6; i++) { await sleep(10); await touch('touchMove', 300, hy + i * 10); } await touch('touchEnd');
+await sleep(700);
+console.log(await p.evaluate(() => window.__ev.join('\n')), await p.evaluate(() => !!document.querySelector('.sv-sheet .qd-header')));
+await b.close();

@@ -1,0 +1,10 @@
+import { chromium } from 'playwright';
+const b = await chromium.launch(); const p = await b.newPage({ viewport: { width: 1280, height: 800 } });
+const hits = []; p.on('response', r => { if (r.url().includes('PB2002')) hits.push(r.status() + ' ' + r.url()); });
+const errs = []; p.on('pageerror', e => errs.push(e.message)); p.on('console', m => m.type()==='error' && errs.push(m.text()));
+await p.goto('http://localhost:8080/', { waitUntil: 'networkidle' });
+const el = p.getByText(/tectonic|plate/i).first(); console.log('found', await el.count());
+await el.click().catch(e => console.log('click fail', e.message.slice(0,100)));
+await p.waitForTimeout(3000);
+console.log(hits, 'paths', await p.evaluate(() => document.querySelectorAll('path').length), errs);
+await p.screenshot({ path: '/workspace/shakeviewer/screens/build-desktop-plates.png' }); await b.close();

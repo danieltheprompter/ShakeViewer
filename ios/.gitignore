@@ -1,0 +1,12 @@
+*.xcodeproj/
+xcuserdata/
+DerivedData/
+.build/
+.DS_Store
+
+# Firebase client config: never commit
+GoogleService-Info.plist
+**/GoogleService-Info.plist
+perf/*.trace
+perf/*.xml
+build/

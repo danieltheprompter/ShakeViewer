@@ -1,0 +1,39 @@
+rules_version = '2';
+// ShakeViewer: owner-only access. Covers what both the website (index.html) and the iOS app read/write:
+//   users/{uid}                       photoURL (avatar data URI or null), terms/privacy consent fields
+//   users/{uid}/bookmarks/{id}        quake snapshot + note (site + app add; site updates {note})
+//   users/{uid}/searchHistory/{id}    startDate/endDate/minMag/bounds/timestamp (site + app add)
+// Everything else is denied.
+service cloud.firestore {
+  match /databases/{db}/documents {
+    function isOwner(uid) { return request.auth != null && request.auth.uid == uid; }
+    function d() { return request.resource.data; }
+
+    match /users/{uid} {
+      allow read, delete: if isOwner(uid);
+      allow create, update: if isOwner(uid)
+        && d().keys().hasOnly(['photoURL', 'termsAcceptedAt', 'termsVersion',
+                               'privacyPolicyAcceptedAt', 'privacyPolicyVersion'])
+        && (!('photoURL' in d()) || d().photoURL == null
+            || (d().photoURL is string && d().photoURL.size() < 900000))
+        && (!('termsVersion' in d()) || (d().termsVersion is string && d().termsVersion.size() <= 40))
+        && (!('privacyPolicyVersion' in d()) || (d().privacyPolicyVersion is string && d().privacyPolicyVersion.size() <= 40));
+
+      match /bookmarks/{id} {
+        allow read, delete: if isOwner(uid);
+        allow create, update: if isOwner(uid)
+          && d().size() <= 20
+          && 'quakeId' in d() && ((d().quakeId is string && d().quakeId.size() <= 120) || d().quakeId is int)
+          && (!('note' in d()) || (d().note is string && d().note.size() <= 2000))
+          && (!('place' in d()) || d().place == null || (d().place is string && d().place.size() <= 500))
+          && (!('url' in d()) || d().url == null || (d().url is string && d().url.size() <= 1000));
+      }
+      match /searchHistory/{id} {
+        allow read, delete: if isOwner(uid);
+        allow create: if isOwner(uid) && d().size() <= 10
+          && 'startDate' in d() && 'endDate' in d();
+      }
+    }
+    match /{document=**} { allow read, write: if false; }
+  }
+}
