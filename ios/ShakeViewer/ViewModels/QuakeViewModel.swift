@@ -220,6 +220,42 @@ final class QuakeViewModel {
         isDrawingArea = true
     }
 
+    /// Closes the quake detail sheet (if any) and waits for its dismissal animation, so another
+    /// sheet can be presented. Without this, taps on Search / Filters / "Set up custom search"
+    /// while a quake is selected did nothing (SwiftUI drops the second presentation).
+    func dismissDetailSheetIfNeeded() async {
+        guard selected != nil else { return }
+        selected = nil
+        try? await Task.sleep(for: .milliseconds(500))
+    }
+
+    /// "Around my location": square search area of `radiusKm` around the user's current fix.
+    func useAreaAroundMe(radiusKm: Double) async {
+        isLocating = true
+        defer { isLocating = false }
+        guard await location.ensureAuthorized() else {
+            toast = Self.locationDeniedMessage
+            return
+        }
+        var c = await location.requestLocation()
+        if c == nil { c = userLocation }
+        guard let c else {
+            toast = "Location unavailable right now. Try again."
+            return
+        }
+        userLocation = c
+        store.save(c, key: LocalStoreKey.myLocation)
+        customBounds = Self.box(around: c, radiusKm: radiusKm)
+        toast = "Area set: \(Int(radiusKm)) km around you"
+    }
+
+    static func box(around c: Coordinate, radiusKm: Double) -> BoundingBox {
+        let dLat = radiusKm / 111.0
+        let dLon = radiusKm / (111.0 * max(0.05, cos(c.latitude * .pi / 180)))
+        return BoundingBox(minLat: max(-90, c.latitude - dLat), maxLat: min(90, c.latitude + dLat),
+                           minLon: max(-180, c.longitude - dLon), maxLon: min(180, c.longitude + dLon)).rounded
+    }
+
     func cancelDrawingArea() {
         isDrawingArea = false
         showSearchSheet = true

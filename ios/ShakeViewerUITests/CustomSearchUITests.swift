@@ -14,12 +14,12 @@ final class CustomSearchUITests: XCTestCase {
 
         // 1. Search entry on the Map tab
         app.navigationBars.buttons["Search"].firstMatch.tap()
-        XCTAssertTrue(app.buttons["Draw search area"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["drawArea"].waitForExistence(timeout: 10))
         sleep(1)
         snap("11-search-sheet")
 
         // 2. Draw mode
-        app.buttons["Draw search area"].tap()
+        app.buttons["drawArea"].tap()
         XCTAssertTrue(app.staticTexts["Drag on the map to draw a search area"].waitForExistence(timeout: 10))
         sleep(1)
         snap("12-draw-mode")
@@ -28,7 +28,7 @@ final class CustomSearchUITests: XCTestCase {
         let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.22, dy: 0.36))
         let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.80, dy: 0.66))
         start.press(forDuration: 0.2, thenDragTo: end)
-        XCTAssertTrue(app.buttons["Boundary selected · redraw"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.descendants(matching: .any)["boundsSummary"].waitForExistence(timeout: 10))
         sleep(1)
         snap("13-boundary-selected-sheet")
 
@@ -52,6 +52,72 @@ final class CustomSearchUITests: XCTestCase {
         app.tabBars.buttons["List"].tap()
         sleep(2)
         snap("17-results-list")
+    }
+
+    /// Regression for Daniel's build-1 report: with a quake detail sheet open (the default after tapping
+    /// any quake), "Set up custom search" / Search / Filters taps did nothing. Completes a full search.
+    @MainActor
+    func testSetUpCustomSearchPillWithDetailOpenCompletesSearch() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["-svSelectFirst", "YES", "-svCamera", "37,139,5200000",
+                               "-svStart", "2026-09-16", "-svEnd", "2026-10-16", "-svMinMag", "3.0"]
+        app.launch()
+        // Detail sheet up
+        XCTAssertTrue(app.descendants(matching: .any)["miniMap"].waitForExistence(timeout: 30))
+
+        // Filters must open even though the detail sheet is showing
+        app.navigationBars.buttons["Filters"].firstMatch.tap()
+        XCTAssertTrue(app.navigationBars.firstMatch.waitForExistence(timeout: 5))
+        sleep(2)
+        snap("30-filters-from-detail")
+        app.swipeDown(velocity: .fast)
+        sleep(2)
+
+        // Re-open detail, switch to Custom (auto-opens search sheet) and close it
+        app.buttons["Custom"].firstMatch.tap()
+        let run = app.buttons["runSearch"]
+        XCTAssertTrue(run.waitForExistence(timeout: 10))
+        app.buttons["Done"].tap()
+        sleep(2)
+
+        // The reported dead tap
+        let pill = app.buttons["Set up custom search"]
+        XCTAssertTrue(pill.waitForExistence(timeout: 10))
+        pill.tap()
+        XCTAssertTrue(run.waitForExistence(timeout: 10), "Set up custom search did not open the search sheet")
+        snap("31-search-sheet-from-pill")
+
+        // Pick an area by drawing on the map
+        app.buttons["drawArea"].tap()
+        XCTAssertTrue(app.staticTexts["Drag on the map to draw a search area"].waitForExistence(timeout: 10))
+        let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.40))
+        let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.78))
+        start.press(forDuration: 0.2, thenDragTo: end)
+        XCTAssertTrue(app.descendants(matching: .any)["boundsSummary"].waitForExistence(timeout: 10))
+        snap("32-area-selected")
+
+        // Run search: USGS/EMSC must return results
+        run.tap()
+        // Sheet closes only when the search succeeded with results (errors keep it open).
+        XCTAssertTrue(run.waitForNonExistence(timeout: 60), "search did not complete with results")
+        let results = app.buttons.matching(NSPredicate(format: "label CONTAINS ' results'")).firstMatch
+        XCTAssertTrue(results.waitForExistence(timeout: 10))
+        print("CUSTOM_RESULTS_LABEL:", results.label)
+        sleep(2)
+        snap("33-custom-results")
+        XCTAssertFalse(results.label.hasPrefix("0 results"), "search returned no results: \(results.label)")
+
+        // Tap a result quake (opens detail), then the results pill must still reopen the search sheet
+        app.tabBars.buttons["List"].tap()
+        sleep(2)
+        app.cells.firstMatch.tap()
+        sleep(2)
+        app.tabBars.buttons["Map"].tap()
+        sleep(1)
+        app.buttons.matching(NSPredicate(format: "label CONTAINS ' results'")).firstMatch.tap()
+        XCTAssertTrue(run.waitForExistence(timeout: 10), "results pill dead while detail open")
+        snap("34-reopen-from-pill")
     }
 
     @MainActor

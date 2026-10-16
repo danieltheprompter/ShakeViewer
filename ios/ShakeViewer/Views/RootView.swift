@@ -5,6 +5,10 @@ struct RootView: View {
     @State private var tab: AppTab = .map
     @State private var searchDetent: PresentationDetent = .large
     @State private var detailDetent: PresentationDetent = RootView.detailMedium
+    /// Actual presentation state of the search sheet. `model.showSearchSheet` is the *request*;
+    /// we only present once no other sheet (the quake detail) is up, because SwiftUI silently
+    /// ignores a second `.sheet` on the same presenter while one is already showing.
+    @State private var searchPresented = false
     static let detailSmall: PresentationDetent = .fraction(0.25)
     static let detailMedium: PresentationDetent = .fraction(0.45)
 
@@ -32,10 +36,22 @@ struct RootView: View {
                 .presentationDragIndicator(.visible)
                 .presentationBackgroundInteraction(.enabled(upThrough: Self.detailMedium))
         }
-        .sheet(isPresented: $model.showSearchSheet) {
+        .sheet(isPresented: Binding(
+            get: { searchPresented },
+            set: { shown in
+                searchPresented = shown
+                if !shown { model.showSearchSheet = false }
+            })) {
             CustomSearchSheet()
                 .presentationDetents([.medium, .large], selection: $searchDetent)
                 .presentationDragIndicator(.visible)
+        }
+        .onChange(of: model.showSearchSheet, initial: true) { _, show in
+            guard show else { searchPresented = false; return }
+            Task { @MainActor in
+                await model.dismissDetailSheetIfNeeded()
+                if model.showSearchSheet { searchPresented = true }
+            }
         }
         .onChange(of: model.showMapTabRequest) { _, _ in tab = .map }
         .onChange(of: model.compactDetailRequest) { _, _ in
@@ -142,7 +158,13 @@ struct FeedToolbar: ViewModifier {
                     .accessibilityHint("Custom search by date, magnitude and map area")
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button { showFilters = true } label: {
+                    Button {
+                        // Same dead-tap trap as Search: a sheet can't open while the detail sheet is up.
+                        Task { @MainActor in
+                            await model.dismissDetailSheetIfNeeded()
+                            showFilters = true
+                        }
+                    } label: {
                         Label("Filters", systemImage: "line.3.horizontal.decrease.circle")
                     }
                 }

@@ -5,6 +5,7 @@ struct CustomSearchSheet: View {
     @Environment(QuakeViewModel.self) private var model
     @Environment(AccountService.self) private var account
     @Environment(\.dismiss) private var dismiss
+    @State private var aroundMeKm: Double = 250
 
     var body: some View {
         @Bindable var model = model
@@ -31,19 +32,39 @@ struct CustomSearchSheet: View {
                     Button {
                         model.beginDrawingArea()
                     } label: {
-                        Label(model.customBounds == nil ? "Draw search area" : "Boundary selected · redraw",
-                              systemImage: model.customBounds == nil ? "rectangle.dashed" : "checkmark.rectangle")
+                        Label(model.customBounds == nil ? "Draw search area on map" : "Redraw search area on map",
+                              systemImage: "rectangle.dashed")
                     }
+                    .accessibilityIdentifier("drawArea")
+                    Picker("Radius", selection: $aroundMeKm) {
+                        ForEach([50.0, 100, 250, 500, 1000], id: \.self) { Text("\(Int($0)) km").tag($0) }
+                    }
+                    Button {
+                        Task { await model.useAreaAroundMe(radiusKm: aroundMeKm) }
+                    } label: {
+                        HStack {
+                            Label("Use area around my location", systemImage: "location.circle")
+                            if model.isLocating { Spacer(); ProgressView() }
+                        }
+                    }
+                    .disabled(model.isLocating)
+                    .accessibilityIdentifier("areaAroundMe")
                     if let b = model.customBounds {
-                        BoundsSummary(bounds: b)
+                        HStack {
+                            Image(systemName: "checkmark.rectangle").foregroundStyle(.red)
+                            BoundsSummary(bounds: b)
+                        }
+                        .accessibilityIdentifier("boundsSummary")
                         Button(role: .destructive) { model.customBounds = nil } label: {
-                            Label("Clear boundary", systemImage: "xmark.circle")
+                            Label("Clear area (search worldwide)", systemImage: "xmark.circle")
                         }
                     }
                 } header: {
                     Text("Area")
                 } footer: {
-                    Text(model.customBounds == nil ? "No boundary: searches worldwide." : "Only quakes inside the red rectangle.")
+                    Text(model.customBounds == nil
+                         ? "No area set: searches worldwide. Draw a rectangle on the map, or pick a radius around your location."
+                         : "Only quakes inside the red rectangle. On the map you can drag its corners to resize it.")
                 }
 
                 RecentSearchesSection()
