@@ -10,6 +10,7 @@ struct AccountUser: Sendable, Equatable {
     let uid: String
     let email: String?
     let displayName: String?
+    var isEmailVerified: Bool = true
 }
 
 /// Optional Firebase layer. Everything quake-related works without it.
@@ -41,7 +42,7 @@ final class AccountService {
         if FirebaseApp.app() == nil { FirebaseApp.configure() }
         isAvailable = true
         authHandle = Auth.auth().addStateDidChangeListener { [weak self] _, u in
-            let mapped = u.map { AccountUser(uid: $0.uid, email: $0.email, displayName: $0.displayName) }
+            let mapped = u.map { AccountUser(uid: $0.uid, email: $0.email, displayName: $0.displayName, isEmailVerified: $0.isEmailVerified) }
             MainActor.assumeIsolated {
                 self?.user = mapped
                 self?.listenBookmarks()
@@ -53,13 +54,53 @@ final class AccountService {
 
     func signIn(email: String, password: String) async throws {
         #if canImport(FirebaseCore)
-        try await Self.signInFirebase(email: email, password: password)
+        try await Self.signInFirebase(email: SignUpValidation.normalizedEmail(email), password: password)
         #endif
+    }
+
+    /// Re-sends the verification email to the signed-in user.
+    func sendEmailVerification() async throws {
+        #if canImport(FirebaseCore)
+        try await Self.sendVerificationFirebase()
+        #endif
+    }
+
+    /// Reloads the Firebase user so a verification completed in Mail is picked up.
+    func refreshUser() async {
+        #if canImport(FirebaseCore)
+        if let fresh = await Self.reloadFirebaseUser() { user = fresh }
+        #endif
+    }
+
+    /// Maps Firebase Auth errors to short, friendly messages.
+    nonisolated static func friendlyMessage(for error: Error) -> String {
+        if let d = (error as? DeletionError)?.errorDescription { return d }
+        #if canImport(FirebaseCore)
+        let ns = error as NSError
+        if ns.domain == AuthErrors.domain, let code = AuthErrorCode(rawValue: ns.code) {
+            switch code {
+            case .emailAlreadyInUse: return "An account with this email already exists. Try signing in or resetting your password."
+            case .weakPassword: return "That password is too weak. Use at least 8 characters with letters and numbers."
+            case .invalidEmail: return "That email address doesn't look right."
+            case .networkError: return "Can't reach the server. Check your connection and try again."
+            case .wrongPassword, .invalidCredential, .userNotFound: return "Email or password is incorrect."
+            case .tooManyRequests: return "Too many attempts. Please wait a moment and try again."
+            case .userDisabled: return "This account has been disabled."
+            case .missingEmail: return "Enter your email address."
+            default: break
+            }
+        }
+        if ns.domain == NSURLErrorDomain { return "Can't reach the server. Check your connection and try again." }
+        #endif
+        return "Something went wrong. Please try again."
     }
 
     func signUp(email: String, password: String, name: String) async throws {
         #if canImport(FirebaseCore)
-        user = try await Self.createAccount(email: email, password: password, name: name, termsVersion: Self.termsVersion)
+        user = try await Self.createAccount(email: SignUpValidation.normalizedEmail(email), password: password,
+                                            name: name.trimmingCharacters(in: .whitespacesAndNewlines), termsVersion: Self.termsVersion)
+        // Verification is best-effort; the account is usable either way.
+        try? await Self.sendVerificationFirebase()
         #endif
     }
 
@@ -85,7 +126,19 @@ final class AccountService {
             try? Auth.auth().signOut()
             throw error
         }
-        return AccountUser(uid: r.user.uid, email: r.user.email, displayName: name.isEmpty ? nil : name)
+        return AccountUser(uid: r.user.uid, email: r.user.email, displayName: name.isEmpty ? nil : name, isEmailVerified: false)
+    }
+
+    nonisolated private static func sendVerificationFirebase() async throws {
+        guard let u = Auth.auth().currentUser else { throw DeletionError.notSignedIn }
+        try await u.sendEmailVerification()
+    }
+
+    nonisolated private static func reloadFirebaseUser() async -> AccountUser? {
+        guard let u = Auth.auth().currentUser else { return nil }
+        try? await u.reload()
+        guard let r = Auth.auth().currentUser else { return nil }
+        return AccountUser(uid: r.uid, email: r.email, displayName: r.displayName, isEmailVerified: r.isEmailVerified)
     }
 
     nonisolated private static func signInFirebase(email: String, password: String) async throws {
@@ -95,7 +148,7 @@ final class AccountService {
 
     func resetPassword(email: String) async throws {
         #if canImport(FirebaseCore)
-        try await Auth.auth().sendPasswordReset(withEmail: email)
+        try await Auth.auth().sendPasswordReset(withEmail: SignUpValidation.normalizedEmail(email))
         #endif
     }
 

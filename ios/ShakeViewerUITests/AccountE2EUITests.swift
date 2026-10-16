@@ -17,10 +17,10 @@ final class AccountE2EUITests: XCTestCase {
         app.buttons["Create account"].firstMatch.tap()
         let name = app.textFields["Name"]; XCTAssertTrue(name.waitForExistence(timeout: 5)); name.tap(); name.typeText("SV E2E")
         let mail = app.textFields["Email"]; mail.tap(); mail.typeText(email)
-        let pass = app.secureTextFields["Password"]; pass.tap()
-        let own = app.buttons["Choose My Own Password"]
-        if own.waitForExistence(timeout: 2) { own.tap(); pass.tap() }
-        pass.typeText(pw)
+        // Reveal passwords: plain text fields avoid the simulator's strong-password sheet.
+        app.buttons["togglePasswordVisibility"].tap()
+        let pass = app.textFields["Password"]; pass.tap(); pass.typeText(pw)
+        let confirmPw = app.textFields["Confirm password"]; confirmPw.tap(); confirmPw.typeText(pw)
         let sw = app.switches.firstMatch
         sw.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
         if (sw.value as? String) != "1" { sw.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap() }
@@ -28,6 +28,8 @@ final class AccountE2EUITests: XCTestCase {
         let buttons = app.buttons.matching(identifier: "Create account")
         let a = buttons.element(boundBy: 0), b = buttons.element(boundBy: 1)
         (a.frame.minY > b.frame.minY ? a : b).tap()
+        let done = app.buttons["verifyDone"]
+        if done.waitForExistence(timeout: 20) { done.tap() }
         let ok = app.staticTexts["Signed in"].waitForExistence(timeout: 20)
         if !ok { snap(app, "60-e2e-FAIL") }
         XCTAssertTrue(ok, "sign-up failed")
