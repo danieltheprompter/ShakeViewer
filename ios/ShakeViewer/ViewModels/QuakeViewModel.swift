@@ -52,9 +52,14 @@ final class QuakeViewModel {
     var cloudHistory: [SearchHistoryEntry] { account.cloudHistory }
 
     // UI state shared by Map / List / toolbar
-    var showSearchSheet = false
-    /// "Draw search area" mode on the map (site: isDrawing).
-    var isDrawingArea = false
+    /// Single source of truth for what is on screen over the tabs. Only one thing at a time;
+    /// every transition is an explicit call below (no onChange auto-presentation, no delayed Tasks).
+    enum Overlay: Equatable { case none, search, filters, drawingArea }
+    private(set) var overlay: Overlay = .none
+    /// Rectangle drawn in drawing mode, applied to `customBounds` only on Done.
+    var draftBounds: BoundingBox?
+    var isDrawingArea: Bool { overlay == .drawingArea }
+    var isSearchPresented: Bool { overlay == .search }
     var toast: String?
     private(set) var isLocating = false
     /// Bench-only: list scrolls to this id when set.
@@ -209,24 +214,33 @@ final class QuakeViewModel {
         customBounds = nil
         customRan = false
         customHitLimit = false
-        isDrawingArea = false
+        draftBounds = nil
         if timeRange == .custom { quakes = [] }
         errorMessage = nil
     }
 
     /// Site: onDraw toggles drawing mode (toast "Drag on the map to draw a search area").
     func beginDrawingArea() {
-        showSearchSheet = false
-        isDrawingArea = true
+        draftBounds = nil
+        selected = nil
+        overlay = .drawingArea
     }
 
-    /// Closes the quake detail sheet (if any) and waits for its dismissal animation, so another
-    /// sheet can be presented. Without this, taps on Search / Filters / "Set up custom search"
-    /// while a quake is selected did nothing (SwiftUI drops the second presentation).
-    func dismissDetailSheetIfNeeded() async {
-        guard selected != nil else { return }
+    /// Explicit user request (Search button, pill, summary row, drawing Done/Cancel).
+    /// Replaces the quake detail in the same single sheet slot, so no dismiss-wait-present dance.
+    func openSearch() {
         selected = nil
-        try? await Task.sleep(for: .milliseconds(500))
+        overlay = .search
+    }
+
+    func openFilters() {
+        selected = nil
+        overlay = .filters
+    }
+
+    /// Called when the user dismisses whatever sheet is up (swipe, Done, after Run search).
+    func dismissOverlay() {
+        if overlay == .search || overlay == .filters { overlay = .none }
     }
 
     /// "Around my location": square search area of `radiusKm` around the user's current fix.
@@ -256,17 +270,26 @@ final class QuakeViewModel {
                            minLon: max(-180, c.longitude - dLon), maxLon: min(180, c.longitude + dLon)).rounded
     }
 
+    /// Banner "Cancel": discard the draft, go back to the sheet once (bounds unchanged).
     func cancelDrawingArea() {
-        isDrawingArea = false
-        showSearchSheet = true
+        guard overlay == .drawingArea else { return }
+        draftBounds = nil
+        overlay = .search
     }
 
-    /// Site: onDrawComplete → set bounds, stop drawing, toast "Boundary selected".
-    func finishDrawingArea(_ b: BoundingBox) {
+    /// Drag released: only updates the draft rectangle. Never presents anything.
+    func setDraftArea(_ b: BoundingBox) {
+        guard overlay == .drawingArea else { return }
+        draftBounds = b
+    }
+
+    /// Banner "Done": commit the draft and return to the search sheet exactly once.
+    func confirmDrawingArea() {
+        guard overlay == .drawingArea, let b = draftBounds else { return }
         customBounds = b
-        isDrawingArea = false
+        draftBounds = nil
         toast = "Boundary selected"
-        showSearchSheet = true
+        overlay = .search
     }
 
     func importHistoryToCloud() async {

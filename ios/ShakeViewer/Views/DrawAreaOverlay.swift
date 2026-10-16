@@ -60,38 +60,46 @@ struct DrawAreaOverlay: View {
                                   abs(v.location.x - s.x) > 16, abs(v.location.y - s.y) > 16,
                                   let a = controller.coordinate(atLocal: s),
                                   let b = controller.coordinate(atLocal: v.location) else { return }
-                            model.finishDrawingArea(BoundingBox(a, b).rounded)
+                            model.setDraftArea(BoundingBox(a, b).rounded)
                         }
                 )
 
             if let s = start, let c = current {
                 let rect = CGRect(x: min(s.x, c.x), y: min(s.y, c.y), width: abs(c.x - s.x), height: abs(c.y - s.y))
-                Path { $0.addRect(rect) }
-                    .fill(Color.red.opacity(0.08))
-                Path { $0.addRect(rect) }
-                    .stroke(Color.red, style: StrokeStyle(lineWidth: 2, dash: [6, 5]))
-                ForEach(Array([CGPoint(x: rect.minX, y: rect.minY), CGPoint(x: rect.maxX, y: rect.minY),
-                               CGPoint(x: rect.maxX, y: rect.maxY), CGPoint(x: rect.minX, y: rect.maxY)].enumerated()), id: \.offset) { _, p in
-                    HandleDot().position(p)
-                }
+                DraftRect(rect: rect)
+            } else if let d = model.draftBounds,
+                      let p1 = controller.point(for: CLLocationCoordinate2D(latitude: d.maxLat, longitude: d.minLon)),
+                      let p2 = controller.point(for: CLLocationCoordinate2D(latitude: d.minLat, longitude: d.maxLon)) {
+                DraftRect(rect: CGRect(x: min(p1.x, p2.x), y: min(p1.y, p2.y), width: abs(p2.x - p1.x), height: abs(p2.y - p1.y)))
+                    .allowsHitTesting(false)
+                    .accessibilityIdentifier("draftArea")
             }
 
             VStack {
                 VStack(spacing: 8) {
-                    Label("Drag on the map to draw a search area", systemImage: "hand.draw")
+                    Label(model.draftBounds == nil ? "Drag on the map to draw a search area"
+                                                   : "Area drawn. Drag again to redraw, or tap Done",
+                          systemImage: "hand.draw")
                         .font(.subheadline.weight(.semibold))
+                        .accessibilityIdentifier("drawBanner")
                     HStack(spacing: 10) {
                         Button(role: .cancel) { model.cancelDrawingArea() } label: { Text("Cancel") }
                             .buttonStyle(.bordered)
+                            .accessibilityIdentifier("drawCancel")
                         if controller.mapView != nil {
                             Button {
                                 guard let r = controller.visibleRegion else { return }
-                                model.finishDrawingArea(BoundingBox(region: r).rounded)
+                                model.setDraftArea(BoundingBox(region: r).rounded)
                             } label: {
-                                Label("Use visible area", systemImage: "viewfinder")
+                                Label("Visible area", systemImage: "viewfinder")
                             }
-                            .buttonStyle(.borderedProminent)
+                            .buttonStyle(.bordered)
+                            .accessibilityIdentifier("drawVisible")
                         }
+                        Button { model.confirmDrawingArea() } label: { Text("Done").bold() }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(model.draftBounds == nil)
+                            .accessibilityIdentifier("drawDone")
                     }
                 }
                 .padding(12)
@@ -100,6 +108,20 @@ struct DrawAreaOverlay: View {
                 Spacer()
             }
             .allowsHitTesting(true)
+        }
+    }
+}
+
+private struct DraftRect: View {
+    let rect: CGRect
+    var body: some View {
+        ZStack {
+            Path { $0.addRect(rect) }.fill(Color.red.opacity(0.08))
+            Path { $0.addRect(rect) }.stroke(Color.red, style: StrokeStyle(lineWidth: 2, dash: [6, 5]))
+            ForEach(Array([CGPoint(x: rect.minX, y: rect.minY), CGPoint(x: rect.maxX, y: rect.minY),
+                           CGPoint(x: rect.maxX, y: rect.maxY), CGPoint(x: rect.minX, y: rect.maxY)].enumerated()), id: \.offset) { _, p in
+                HandleDot().position(p)
+            }
         }
     }
 }
@@ -170,7 +192,7 @@ struct HandleDot: View {
 struct CustomSearchPill: View {
     @Environment(QuakeViewModel.self) private var model
     var body: some View {
-        Button { model.showSearchSheet = true } label: {
+        Button { model.openSearch() } label: {
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass")
                 if model.customRan {

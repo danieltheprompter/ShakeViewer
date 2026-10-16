@@ -176,7 +176,7 @@ struct CustomSearchSummary: View {
     @Environment(QuakeViewModel.self) private var model
 
     var body: some View {
-        Button { model.showSearchSheet = true } label: {
+        Button { model.openSearch() } label: {
             HStack(spacing: 10) {
                 Image(systemName: "magnifyingglass.circle.fill").font(.title2).foregroundStyle(.tint)
                 VStack(alignment: .leading, spacing: 2) {
