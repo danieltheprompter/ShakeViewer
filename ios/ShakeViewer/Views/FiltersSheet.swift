@@ -12,7 +12,8 @@ struct FiltersSheet: View {
             Form {
                 Section("Minimum magnitude") {
                     HStack {
-                        Text("M \(model.minMag, specifier: "%.1f")+").monospacedDigit()
+                        Text(model.filter.magActive ? String(format: "M %.1f+", model.minMag) : "Any")
+                            .monospacedDigit().frame(minWidth: 56, alignment: .leading)
                         Slider(value: $model.minMag, in: 2.5...9.0, step: 0.1)
                     }
                 }

@@ -113,6 +113,39 @@ final class QuakeViewModel {
         visibleVersion &+= 1
     }
 
+    /// Single place that explains the "x of y" relationship. x = visibleQuakes (after Filters),
+    /// y = quakes (USGS + EMSC merged and de-duplicated). Used by the status line on Map and List.
+    struct CountSummary: Equatable {
+        let shown: Int
+        let total: Int
+        let filters: [String]
+        var isFiltered: Bool { shown != total }
+        var text: String {
+            guard isFiltered else { return "\(total) \(total == 1 ? "quake" : "quakes")" }
+            return "\(shown) of \(total) quakes · " + (filters.isEmpty ? "filtered" : filters.joined(separator: ", "))
+        }
+        var accessibilityText: String {
+            guard isFiltered else { return "\(total) earthquakes loaded, all shown." }
+            let f = filters.isEmpty ? "" : " by filters: " + filters.map(Self.spoken).joined(separator: ", ")
+            return "Showing \(shown) of \(total) loaded earthquakes. \(total - shown) hidden\(f)."
+        }
+        private static func spoken(_ s: String) -> String {
+            s.replacingOccurrences(of: "≤", with: "within ").replacingOccurrences(of: "+", with: " or greater")
+                .replacingOccurrences(of: "M", with: "magnitude ")
+        }
+    }
+
+    var countSummary: CountSummary {
+        CountSummary(shown: visibleQuakes.count, total: quakes.count, filters: filter.activeSummary)
+    }
+
+    /// "Show all": clears the filters that hide quakes (keeps sort order).
+    func clearFilters() {
+        minMag = QuakeFilter.magFloor
+        depth = .all
+        nearMeActive = false
+    }
+
     var mapHiddenCount: Int { visibleQuakes.count - mapQuakes.count }
 
     /// Only assign when something changed, so an unchanged auto-refresh causes no UI work.

@@ -181,7 +181,7 @@ struct CustomSearchSummary: View {
                 Image(systemName: "magnifyingglass.circle.fill").font(.title2).foregroundStyle(.tint)
                 VStack(alignment: .leading, spacing: 2) {
                     if model.customRan {
-                        Text("\(model.visibleQuakes.count) results").font(.subheadline.weight(.semibold))
+                        Text("\(model.quakes.count) results").font(.subheadline.weight(.semibold))
                         Text("\(QuakeViewModel.dayString(model.customStart)) → \(QuakeViewModel.dayString(model.customEnd)) · M\(model.customMinMag, specifier: "%.1f")+ · \(model.customBounds == nil ? "Global" : "Bounded")")
                             .font(.caption).foregroundStyle(.secondary)
                         if model.customHitLimit {

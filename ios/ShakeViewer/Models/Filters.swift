@@ -103,8 +103,32 @@ struct QuakeFilter: Sendable, Equatable {
     var nearMeRadiusKm: Double? = nil
     var userLocation: Coordinate? = nil
 
+    /// Slider floor. At the floor the magnitude filter is OFF ("Any"): the feed / custom search already
+    /// set the magnitude floor, and feeds legitimately contain events below 2.5 (revised or missing mags,
+    /// custom searches below M2.5) that used to be hidden silently, making "x of y" differ with no filter set.
+    static let magFloor = 2.5
+
+    var magActive: Bool { minMag > Self.magFloor + 0.0001 }
+    /// Near-me only filters once a location is known (otherwise apply() ignores it).
+    var nearMeEffective: Bool { nearMeRadiusKm != nil && userLocation != nil }
+    var isActive: Bool { magActive || depth != .all || nearMeEffective }
+
+    /// Compares the magnitude as displayed (1 decimal), so a quake shown as "4.5" is never hidden by an M4.5+ filter.
+    func passesMag(_ mag: Double) -> Bool {
+        !magActive || (mag * 10).rounded() / 10 >= minMag - 0.0001
+    }
+
+    /// Short human summary of the active filters, e.g. ["M4.5+", "Deep", "≤500 km"].
+    var activeSummary: [String] {
+        var out: [String] = []
+        if magActive { out.append(String(format: "M%.1f+", minMag)) }
+        if depth != .all { out.append(depth.title) }
+        if nearMeEffective, let r = nearMeRadiusKm { out.append("≤\(Int(r)) km") }
+        return out
+    }
+
     func apply(to quakes: [Quake]) -> [Quake] {
-        var list = quakes.filter { depth.matches(depth: $0.depth) && $0.mag >= minMag }
+        var list = quakes.filter { depth.matches(depth: $0.depth) && passesMag($0.mag) }
         if let r = nearMeRadiusKm, let loc = userLocation {
             list = list.filter { Geo.distanceKm(loc, Coordinate(latitude: $0.latitude, longitude: $0.longitude)) <= r }
         }

@@ -196,7 +196,7 @@ struct CustomSearchPill: View {
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass")
                 if model.customRan {
-                    Text("\(model.visibleQuakes.count) results · M\(model.customMinMag, specifier: "%.1f")+ · \(model.customBounds == nil ? "Global" : "Area")")
+                    Text("\(model.quakes.count) results · M\(model.customMinMag, specifier: "%.1f")+ · \(model.customBounds == nil ? "Global" : "Area")")
                     if model.customHitLimit { Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange) }
                 } else {
                     Text("Set up custom search")

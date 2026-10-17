@@ -134,6 +134,9 @@ extension RootView {
         if let s = d.string(forKey: "svStart"), let date = QuakeViewModel.dayFormatter.date(from: s) { model.customStart = date }
         if let s = d.string(forKey: "svEnd"), let date = QuakeViewModel.dayFormatter.date(from: s) { model.customEnd = date }
         if d.object(forKey: "svMinMag") != nil { model.customMinMag = d.double(forKey: "svMinMag") }
+        // -svFilterMinMag 4.5 -svFilterDepth deep: preset the list/map filters (count-label UI test)
+        if d.object(forKey: "svFilterMinMag") != nil { model.minMag = d.double(forKey: "svFilterMinMag") }
+        if let s = d.string(forKey: "svFilterDepth"), let v = DepthFilter(rawValue: s) { model.depth = v }
         if d.bool(forKey: "svRunSearch") { await model.runCustomSearch() }
         if d.bool(forKey: "svOpenSearch") { model.openSearch() }
         if d.bool(forKey: "svDraw") { model.beginDrawingArea() }
@@ -190,8 +193,8 @@ struct StatusLine: View {
     @Environment(QuakeViewModel.self) private var model
     var body: some View {
         HStack {
-            Text("\(model.visibleQuakes.count) of \(model.quakes.count) quakes")
-            Spacer()
+            QuakeCountLabel()
+            Spacer(minLength: 4)
             if let err = model.errorMessage {
                 Label(err, systemImage: "exclamationmark.triangle").foregroundStyle(.red).lineLimit(1)
             } else if let d = model.lastUpdated {
@@ -200,6 +203,53 @@ struct StatusLine: View {
         }
         .font(.caption)
         .foregroundStyle(.secondary)
+    }
+}
+
+/// "128 quakes" or "42 of 128 quakes · M4.5+" + a "Show all" button. Tapping the count explains it.
+struct QuakeCountLabel: View {
+    @Environment(QuakeViewModel.self) private var model
+    @State private var showInfo = false
+    var body: some View {
+        let c = model.countSummary
+        HStack(spacing: 6) {
+            Button { showInfo = true } label: {
+                HStack(spacing: 3) {
+                    Text(c.text).lineLimit(1).truncationMode(.tail)
+                    if c.isFiltered { Image(systemName: "info.circle").imageScale(.small) }
+                }
+            }
+            .buttonStyle(.plain)
+            .disabled(!c.isFiltered)
+            .accessibilityIdentifier("quakeCount")
+            .accessibilityLabel(c.accessibilityText)
+            .accessibilityHint(c.isFiltered ? "Explains why some earthquakes are hidden" : "")
+            .popover(isPresented: $showInfo) {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Why \(c.shown) of \(c.total)?").font(.headline)
+                    Text("\(c.total) earthquakes were loaded (USGS + EMSC, duplicates merged). \(c.total - c.shown) are hidden by your filters\(c.filters.isEmpty ? "" : ": " + c.filters.joined(separator: ", ")).")
+                        .font(.subheadline).fixedSize(horizontal: false, vertical: true)
+                    Button("Show all \(c.total)") { model.clearFilters(); showInfo = false }
+                        .buttonStyle(.borderedProminent)
+                        .accessibilityIdentifier("showAllInfo")
+                }
+                .padding()
+                .frame(idealWidth: 300)
+                .presentationCompactAdaptation(.popover)
+            }
+            #if DEBUG
+            // UI-test probe: exact visible text (the button's a11y label is the spoken explanation).
+            Text(c.text).font(.system(size: 1)).opacity(0.02).frame(width: 1, height: 1)
+                .accessibilityIdentifier("quakeCountText").accessibilityLabel(c.text).allowsHitTesting(false)
+            #endif
+            if c.isFiltered && !c.filters.isEmpty {
+                Button("Show all") { model.clearFilters() }
+                    .font(.caption.weight(.semibold))
+                    .buttonStyle(.borderless)
+                    .accessibilityIdentifier("showAllQuakes")
+                    .accessibilityLabel("Show all \(c.total) earthquakes, clear filters")
+            }
+        }
     }
 }
 
