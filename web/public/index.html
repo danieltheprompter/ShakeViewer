@@ -2063,7 +2063,8 @@ const SvMap = ({ onMapTap, quakes, selectedId, onSelect, mapStyle, showPlates, i
     return L.divIcon({ html, className: 'sv-marker-wrap', iconSize: [size*2.2, size*2.2], iconAnchor: [size*1.1, size*1.1] });
   };
 
-  // Markers (3× world-wrap). Rebuilt only when data/bookmarks/language change, NOT on selection.
+  // Markers (3× world-wrap). Rebuilt only when data/language change, NOT on selection or bookmarks.
+  const bookmarksRef = useRef(bookmarks); bookmarksRef.current = bookmarks;
   useEffect(() => {
     if (!markersLayer.current) return;
     markersLayer.current.clearLayers();
@@ -2098,11 +2099,14 @@ const SvMap = ({ onMapTap, quakes, selectedId, onSelect, mapStyle, showPlates, i
         const marker = L.marker([lat, lng + off], { icon, keyboard: false, zIndexOffset: Math.round((10 - Math.max(0, Math.min(10, mag || 0))) * 100000) });
         hitList.push({ marker, qk, r: size / 2 }); entries.push(marker);
         const labelMap = { Minor: 'minor', Moderate: 'moderate', Strong: 'strong', Major: 'major' };
-        const isSaved = bookmarks && bookmarks.has(qk.id);
-        const savedTxt = isSaved ? ('★ ' + t('bookmarked')) : ('☆ ' + t('bookmark_action'));
         const feltLine = qk.properties.felt > 0 ? `<div style="font-size:11px; color: var(--fg-1); margin-bottom:4px;">${qk.properties.felt} ${t('felt_reports').toLowerCase()}</div>` : '';
         const moreLink = qk.properties.url ? `<a href="${qk.properties.url}" target="_blank" rel="noopener" style="font-size:11px; color:var(--accent); text-decoration:none;">${t('more_details')} →</a>` : '';
-        const popupHtml = `<div style="font-family: var(--font-sans); min-width: 220px;"><div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;"><span style="display:inline-flex; align-items:center; justify-content:center; width:40px; height:40px; border-radius:50%; background:${color}; color:#0a0d12; font-family:var(--font-sans); font-size:17px; font-weight:600; letter-spacing:-0.02em; font-variant-numeric:tabular-nums;">${fmt(mag)}</span><div><div style="font-size:11px; color: var(--fg-3); text-transform:uppercase; letter-spacing:0.08em; font-weight:600;">${qk.source || 'USGS'}</div><div style="font-size:11px; color:${color}; font-weight:500;">${t(labelMap[getMagnitudeLabel(mag)])}</div></div></div><div style="font-size:13.5px; color: var(--fg-0); font-weight:500; margin-bottom:4px;">${(qk.properties.place || t('unknown_region')).replace(/"/g,'&quot;')}</div><div style="font-family: var(--font-mono); font-size:11px; color: var(--fg-2); display:flex; gap:10px; margin-bottom:4px;"><span>${fmt(Math.abs(depth))} km</span><span>${formatRelTime(qk.properties.time)}</span></div>${feltLine}<div style="display:flex; gap:6px; align-items:center; margin-top:6px;">${moreLink}<button onclick="window.__toggleBookmarkById('${qk.id}')" style="margin-left:auto; font-size:11px; padding:4px 8px; background:transparent; color:${isSaved ? 'var(--accent)' : 'var(--fg-2)'}; border:1px solid var(--line-strong); border-radius:4px; cursor:pointer;">${savedTxt}</button><button onclick="window.__shareQuakeById('${qk.id}')" style="font-size:11px; padding:4px 8px; background:transparent; color:var(--fg-2); border:1px solid var(--line-strong); border-radius:4px; cursor:pointer;">${t('copy_link')}</button></div></div>`;
+        // Built when the popup opens, so bookmark changes don't require rebuilding markers (which closed the popup).
+        const popupHtml = () => {
+          const isSaved = bookmarksRef.current && bookmarksRef.current.has(qk.id);
+          const savedTxt = isSaved ? ('★ ' + t('bookmarked')) : ('☆ ' + t('bookmark_action'));
+          return `<div style="font-family: var(--font-sans); min-width: 220px;"><div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;"><span style="display:inline-flex; align-items:center; justify-content:center; width:40px; height:40px; border-radius:50%; background:${color}; color:#0a0d12; font-family:var(--font-sans); font-size:17px; font-weight:600; letter-spacing:-0.02em; font-variant-numeric:tabular-nums;">${fmt(mag)}</span><div><div style="font-size:11px; color: var(--fg-3); text-transform:uppercase; letter-spacing:0.08em; font-weight:600;">${qk.source || 'USGS'}</div><div style="font-size:11px; color:${color}; font-weight:500;">${t(labelMap[getMagnitudeLabel(mag)])}</div></div></div><div style="font-size:13.5px; color: var(--fg-0); font-weight:500; margin-bottom:4px;">${(qk.properties.place || t('unknown_region')).replace(/"/g,'&quot;')}</div><div style="font-family: var(--font-mono); font-size:11px; color: var(--fg-2); display:flex; gap:10px; margin-bottom:4px;"><span>${fmt(Math.abs(depth))} km</span><span>${formatRelTime(qk.properties.time)}</span></div>${feltLine}<div style="display:flex; gap:6px; align-items:center; margin-top:6px;">${moreLink}<button data-bm-id="${qk.id}" onclick="event.stopPropagation(); window.__toggleBookmarkById('${qk.id}')" style="margin-left:auto; font-size:11px; padding:4px 8px; background:transparent; color:${isSaved ? 'var(--accent)' : 'var(--fg-2)'}; border:1px solid var(--line-strong); border-radius:4px; cursor:pointer;">${savedTxt}</button><button onclick="window.__shareQuakeById('${qk.id}')" style="font-size:11px; padding:4px 8px; background:transparent; color:var(--fg-2); border:1px solid var(--line-strong); border-radius:4px; cursor:pointer;">${t('copy_link')}</button></div></div>`;
+        };
         if (!mobileMode) marker.bindPopup(popupHtml, { minWidth: 240, maxWidth: 300, className: 'sv-popup' });
         marker.on('click', (e) => {
           // If the click lands inside several dots, pick the one whose center is nearest the click.
@@ -2115,7 +2119,17 @@ const SvMap = ({ onMapTap, quakes, selectedId, onSelect, mapStyle, showPlates, i
     });
     selPingId.current = null; // ping only once per selection
     shownSelRef.current = selectedIdRef.current;
-  }, [quakes, bookmarks, lang]);
+  }, [quakes, lang]);
+
+  // Bookmark toggled: update the open popup's button in place instead of rebuilding markers.
+  useEffect(() => {
+    bookmarksRef.current = bookmarks;
+    document.querySelectorAll('.sv-popup [data-bm-id]').forEach(btn => {
+      const on = bookmarks && bookmarks.has(btn.getAttribute('data-bm-id'));
+      btn.textContent = on ? ('★ ' + t('bookmarked')) : ('☆ ' + t('bookmark_action'));
+      btn.style.color = on ? 'var(--accent)' : 'var(--fg-2)';
+    });
+  }, [bookmarks, lang]);
 
   // Selection change: restyle only the previously selected and newly selected markers (3 world copies each).
   useEffect(() => {
