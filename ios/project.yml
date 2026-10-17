@@ -11,6 +11,8 @@ settings:
     SWIFT_STRICT_CONCURRENCY: complete
     MARKETING_VERSION: "1.0"
     CURRENT_PROJECT_VERSION: "5"
+    DEVELOPMENT_TEAM: 24PMG59X3P
+    CODE_SIGN_STYLE: Automatic
 packages:
   Firebase:
     url: https://github.com/firebase/firebase-ios-sdk
