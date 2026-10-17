@@ -25,7 +25,9 @@ struct SettingsScreen: View {
                     Text("Accounts are disabled in this build (no GoogleService-Info.plist). Everything else works.")
                         .font(.caption).foregroundStyle(.secondary)
                 } else if let u = account.user {
-                    LabeledContent("Signed in", value: u.displayName ?? u.email ?? "Account")
+                    // Never show Apple "Hide My Email" relay addresses.
+                    let isRelay = u.email?.lowercased().hasSuffix("@privaterelay.appleid.com") ?? false
+                    LabeledContent("Signed in", value: u.displayName ?? (isRelay ? "Signed in with Apple · email hidden" : u.email) ?? "Account")
                     if u.needsEmailVerification {
                         EmailVerificationRow()
                     }

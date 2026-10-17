@@ -886,7 +886,7 @@ const TRANSLATIONS = {
     from_you: 'from you', people_reported: 'people reported', tsunami_watch: 'Tsunami watch',
     full_report_on: 'Full report on {source}',
     welcome_back: 'Welcome back', create_account: 'Create account',
-    continue_with_google: 'Continue with Google', continue_with_apple: 'Continue with Apple', sign_in_with_apple: 'Sign in with Apple', shakeviewer_user: 'ShakeViewer user', or: 'OR',
+    continue_with_google: 'Continue with Google', continue_with_apple: 'Continue with Apple', sign_in_with_apple: 'Sign in with Apple', shakeviewer_user: 'ShakeViewer user', apple_email_hidden: 'Signed in with Apple · email hidden', or: 'OR',
     display_name: 'Display name', email: 'Email', password: 'Password',
     current_password: 'Current password', new_password: 'New password',
     update_password: 'Update password', change_password: 'Change password',
@@ -957,7 +957,7 @@ const TRANSLATIONS = {
     from_you: 'de ti', people_reported: 'personas reportaron', tsunami_watch: 'Alerta de tsunami',
     full_report_on: 'Informe completo en {source}',
     welcome_back: 'Bienvenido de nuevo', create_account: 'Crear cuenta',
-    continue_with_google: 'Continuar con Google', continue_with_apple: 'Continuar con Apple', sign_in_with_apple: 'Iniciar sesión con Apple', shakeviewer_user: 'Usuario de ShakeViewer', or: 'O',
+    continue_with_google: 'Continuar con Google', continue_with_apple: 'Continuar con Apple', sign_in_with_apple: 'Iniciar sesión con Apple', shakeviewer_user: 'Usuario de ShakeViewer', apple_email_hidden: 'Sesión iniciada con Apple · correo oculto', or: 'O',
     display_name: 'Nombre visible', email: 'Correo electrónico', password: 'Contraseña',
     current_password: 'Contraseña actual', new_password: 'Nueva contraseña',
     update_password: 'Actualizar contraseña', change_password: 'Cambiar contraseña',
@@ -1028,7 +1028,7 @@ const TRANSLATIONS = {
     from_you: 'de você', people_reported: 'pessoas relataram', tsunami_watch: 'Alerta de tsunami',
     full_report_on: 'Relatório completo em {source}',
     welcome_back: 'Bem-vindo de volta', create_account: 'Criar conta',
-    continue_with_google: 'Continuar com Google', continue_with_apple: 'Continuar com a Apple', sign_in_with_apple: 'Iniciar sessão com a Apple', shakeviewer_user: 'Usuário do ShakeViewer', or: 'OU',
+    continue_with_google: 'Continuar com Google', continue_with_apple: 'Continuar com a Apple', sign_in_with_apple: 'Iniciar sessão com a Apple', shakeviewer_user: 'Usuário do ShakeViewer', apple_email_hidden: 'Sessão iniciada com a Apple · e-mail oculto', or: 'OU',
     display_name: 'Nome de exibição', email: 'E-mail', password: 'Senha',
     current_password: 'Senha atual', new_password: 'Nova senha',
     update_password: 'Atualizar senha', change_password: 'Alterar senha',
@@ -1099,7 +1099,7 @@ const TRANSLATIONS = {
     from_you: 'あなたから', people_reported: '人が報告', tsunami_watch: '津波警報',
     full_report_on: '{source}で詳細を見る',
     welcome_back: 'おかえりなさい', create_account: 'アカウント作成',
-    continue_with_google: 'Googleで続ける', continue_with_apple: 'Appleで続ける', sign_in_with_apple: 'Appleでサインイン', shakeviewer_user: 'ShakeViewerユーザー', or: 'または',
+    continue_with_google: 'Googleで続ける', continue_with_apple: 'Appleで続ける', sign_in_with_apple: 'Appleでサインイン', shakeviewer_user: 'ShakeViewerユーザー', apple_email_hidden: 'Appleでサインイン済み · メール非表示', or: 'または',
     display_name: '表示名', email: 'メール', password: 'パスワード',
     current_password: '現在のパスワード', new_password: '新しいパスワード',
     update_password: 'パスワードを更新', change_password: 'パスワードを変更',
@@ -2472,7 +2472,7 @@ const ProfileModal = ({ user, auth, bookmarksCount, onClose }) => {
                     <button className="sv-btn" onClick={() => setEditingName(true)} style={{ padding: 6, color: 'var(--fg-3)' }} aria-label={t('change_password')}><SvIcon name="pencil" size={13}/></button>
                   </div>
                 )}
-              <div style={{ fontSize: 13, color: 'var(--fg-2)', marginTop: 2 }}>{user.email}</div>
+              <div style={{ fontSize: 13, color: 'var(--fg-2)', marginTop: 2 }}>{svIsRelayEmail(user.email) ? t('apple_email_hidden') : user.email}</div>
               <div style={{ fontSize: 11, color: 'var(--fg-3)', marginTop: 4 }}>
                 {t(bookmarksCount === 1 ? 'bookmark_count_one' : 'bookmark_count_many', { n: bookmarksCount })} · {t('joined')} {user.metadata?.creationTime ? new Date(user.metadata.creationTime).toLocaleDateString() : t('recently')}
               </div>
