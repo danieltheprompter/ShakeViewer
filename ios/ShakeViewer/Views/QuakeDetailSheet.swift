@@ -60,7 +60,7 @@ struct QuakeDetailSheet: View {
                     Button {
                         model.toggleBookmark(quake)
                     } label: {
-                        Label(model.isBookmarked(quake) ? "Saved" : "Bookmark",
+                        Label(model.isBookmarked(quake) ? "Bookmarked" : "Bookmark",
                               systemImage: model.isBookmarked(quake) ? "bookmark.fill" : "bookmark")
                     }
                     .buttonStyle(.bordered)

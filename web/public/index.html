@@ -905,8 +905,8 @@ const TRANSLATIONS = {
     type_delete: 'Type DELETE to confirm', delete_my_account: 'Delete my account',
     choose_avatar: 'Choose avatar',
     bookmarks_title: 'Bookmarks ({n})', list: 'List', map: 'Map',
-    no_bookmarks_yet: 'No bookmarks yet. Tap the bookmark icon next to an earthquake to save it.',
-    add_note: 'Add a note…', save: 'Save',
+    no_bookmarks_yet: 'No bookmarks yet. Tap the bookmark icon next to an earthquake to bookmark it.',
+    add_note: 'Add a note…', save: 'Save', bookmark_action: 'Bookmark',
     bookmarked: 'Bookmarked', bookmark_removed: 'Bookmark removed',
     bookmarked_local: 'Bookmarked (local — sign in to sync)',
     link_copied: 'Link copied to clipboard', copy_failed: 'Could not copy link',
@@ -976,10 +976,10 @@ const TRANSLATIONS = {
     type_delete: 'Escribe DELETE para confirmar', delete_my_account: 'Eliminar mi cuenta',
     choose_avatar: 'Elige un avatar',
     bookmarks_title: 'Favoritos ({n})', list: 'Lista', map: 'Mapa',
-    no_bookmarks_yet: 'Aún no hay favoritos. Toca el ícono de favorito junto a un terremoto para guardarlo.',
-    add_note: 'Añadir una nota…', save: 'Guardar',
-    bookmarked: 'Guardado', bookmark_removed: 'Favorito eliminado',
-    bookmarked_local: 'Guardado (local — inicia sesión para sincronizar)',
+    no_bookmarks_yet: 'Aún no hay favoritos. Toca el ícono de favorito junto a un terremoto para añadirlo a favoritos.',
+    add_note: 'Añadir una nota…', save: 'Guardar', bookmark_action: 'Añadir a favoritos',
+    bookmarked: 'Añadido a favoritos', bookmark_removed: 'Favorito eliminado',
+    bookmarked_local: 'Añadido a favoritos (local — inicia sesión para sincronizar)',
     link_copied: 'Enlace copiado al portapapeles', copy_failed: 'No se pudo copiar el enlace',
     finding_location: 'Buscando tu ubicación…', location_set: 'Ubicación establecida',
     location_unavailable: 'Ubicación no disponible', geolocation_unavailable: 'Geolocalización no disponible',
@@ -1047,10 +1047,10 @@ const TRANSLATIONS = {
     type_delete: 'Digite DELETE para confirmar', delete_my_account: 'Excluir minha conta',
     choose_avatar: 'Escolha um avatar',
     bookmarks_title: 'Favoritos ({n})', list: 'Lista', map: 'Mapa',
-    no_bookmarks_yet: 'Ainda sem favoritos. Toque o ícone ao lado de um terremoto para salvá-lo.',
-    add_note: 'Adicionar nota…', save: 'Salvar',
-    bookmarked: 'Salvo', bookmark_removed: 'Favorito removido',
-    bookmarked_local: 'Salvo (local — entre para sincronizar)',
+    no_bookmarks_yet: 'Ainda sem favoritos. Toque o ícone de favorito ao lado de um terremoto para adicioná-lo aos favoritos.',
+    add_note: 'Adicionar nota…', save: 'Salvar', bookmark_action: 'Adicionar aos favoritos',
+    bookmarked: 'Adicionado aos favoritos', bookmark_removed: 'Favorito removido',
+    bookmarked_local: 'Adicionado aos favoritos (local — entre para sincronizar)',
     link_copied: 'Link copiado', copy_failed: 'Não foi possível copiar o link',
     finding_location: 'Buscando sua localização…', location_set: 'Localização definida',
     location_unavailable: 'Localização indisponível', geolocation_unavailable: 'Geolocalização indisponível',
@@ -1118,10 +1118,10 @@ const TRANSLATIONS = {
     type_delete: '確認のため DELETE と入力', delete_my_account: 'アカウントを削除する',
     choose_avatar: 'アバターを選択',
     bookmarks_title: 'ブックマーク ({n})', list: 'リスト', map: 'マップ',
-    no_bookmarks_yet: 'ブックマークはまだありません。地震の横のアイコンをタップして保存できます。',
-    add_note: 'メモを追加…', save: '保存',
+    no_bookmarks_yet: 'ブックマークはまだありません。地震の横のブックマークアイコンをタップしてブックマークできます。',
+    add_note: 'メモを追加…', save: '保存', bookmark_action: 'ブックマーク',
     bookmarked: 'ブックマークしました', bookmark_removed: 'ブックマークを削除しました',
-    bookmarked_local: 'ローカルに保存 (同期にはログインが必要)',
+    bookmarked_local: 'ブックマークしました (ローカル — 同期にはログインが必要)',
     link_copied: 'リンクをコピーしました', copy_failed: 'リンクをコピーできませんでした',
     finding_location: '現在地を取得中…', location_set: '現在地を設定しました',
     location_unavailable: '位置情報が取得できません', geolocation_unavailable: '位置情報を利用できません',
@@ -1711,7 +1711,7 @@ const QuakeRow = ({ quake, selected, onClick, onBookmark, onShare, bookmarked, u
       </div>
       <div style={{ display: 'flex', gap: 4, alignItems: 'center', opacity: 0.7 }} onClick={e => e.stopPropagation()}>
         {onBookmark && (
-          <button className="sv-btn" style={{ padding: 6, minHeight: 'auto', color: bookmarked ? 'var(--accent)' : 'var(--fg-2)' }} onClick={() => onBookmark(quake)} aria-label="Bookmark" title="Bookmark">
+          <button className="sv-btn" style={{ padding: 6, minHeight: 'auto', color: bookmarked ? 'var(--accent)' : 'var(--fg-2)' }} onClick={() => onBookmark(quake)} aria-label={bookmarked ? t('bookmarked') : t('bookmark_action')} title={bookmarked ? t('bookmarked') : t('bookmark_action')}>
             <SvIcon name={bookmarked ? 'bookmark-filled' : 'bookmark'} size={15}/>
           </button>
         )}
@@ -1759,7 +1759,7 @@ const QuakeDetail = ({ quake, onClose, onBookmark, onShare, bookmarked, userLoca
           <span style={{ fontSize: 13 }}>{t('back')}</span>
         </button>
         <div style={{ display: 'flex', gap: 4 }}>
-          <button className="sv-btn" onClick={() => onBookmark(quake)} style={{ color: bookmarked ? 'var(--accent)' : 'var(--fg-2)', padding: 8 }} aria-label={t('bookmarks')}>
+          <button className="sv-btn" onClick={() => onBookmark(quake)} style={{ color: bookmarked ? 'var(--accent)' : 'var(--fg-2)', padding: 8 }} aria-label={bookmarked ? t('bookmarked') : t('bookmark_action')} title={bookmarked ? t('bookmarked') : t('bookmark_action')}>
             <SvIcon name={bookmarked ? 'bookmark-filled' : 'bookmark'} size={16}/>
           </button>
           <button className="sv-btn" onClick={() => onShare(quake)} style={{ padding: 8 }} aria-label="Share">
@@ -2099,7 +2099,7 @@ const SvMap = ({ onMapTap, quakes, selectedId, onSelect, mapStyle, showPlates, i
         hitList.push({ marker, qk, r: size / 2 }); entries.push(marker);
         const labelMap = { Minor: 'minor', Moderate: 'moderate', Strong: 'strong', Major: 'major' };
         const isSaved = bookmarks && bookmarks.has(qk.id);
-        const savedTxt = isSaved ? ('★ ' + t('saved')) : ('☆ ' + t('save'));
+        const savedTxt = isSaved ? ('★ ' + t('bookmarked')) : ('☆ ' + t('bookmark_action'));
         const feltLine = qk.properties.felt > 0 ? `<div style="font-size:11px; color: var(--fg-1); margin-bottom:4px;">${qk.properties.felt} ${t('felt_reports').toLowerCase()}</div>` : '';
         const moreLink = qk.properties.url ? `<a href="${qk.properties.url}" target="_blank" rel="noopener" style="font-size:11px; color:var(--accent); text-decoration:none;">${t('more_details')} →</a>` : '';
         const popupHtml = `<div style="font-family: var(--font-sans); min-width: 220px;"><div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;"><span style="display:inline-flex; align-items:center; justify-content:center; width:40px; height:40px; border-radius:50%; background:${color}; color:#0a0d12; font-family:var(--font-sans); font-size:17px; font-weight:600; letter-spacing:-0.02em; font-variant-numeric:tabular-nums;">${fmt(mag)}</span><div><div style="font-size:11px; color: var(--fg-3); text-transform:uppercase; letter-spacing:0.08em; font-weight:600;">${qk.source || 'USGS'}</div><div style="font-size:11px; color:${color}; font-weight:500;">${t(labelMap[getMagnitudeLabel(mag)])}</div></div></div><div style="font-size:13.5px; color: var(--fg-0); font-weight:500; margin-bottom:4px;">${(qk.properties.place || t('unknown_region')).replace(/"/g,'&quot;')}</div><div style="font-family: var(--font-mono); font-size:11px; color: var(--fg-2); display:flex; gap:10px; margin-bottom:4px;"><span>${fmt(Math.abs(depth))} km</span><span>${formatRelTime(qk.properties.time)}</span></div>${feltLine}<div style="display:flex; gap:6px; align-items:center; margin-top:6px;">${moreLink}<button onclick="window.__toggleBookmarkById('${qk.id}')" style="margin-left:auto; font-size:11px; padding:4px 8px; background:transparent; color:${isSaved ? 'var(--accent)' : 'var(--fg-2)'}; border:1px solid var(--line-strong); border-radius:4px; cursor:pointer;">${savedTxt}</button><button onclick="window.__shareQuakeById('${qk.id}')" style="font-size:11px; padding:4px 8px; background:transparent; color:var(--fg-2); border:1px solid var(--line-strong); border-radius:4px; cursor:pointer;">${t('copy_link')}</button></div></div>`;
@@ -2650,7 +2650,7 @@ const AboutBodyEs = () => (
     </details>
     <details className="faq-item">
       <summary className="faq-q">¿Por qué debería crear una cuenta?</summary>
-      <div className="faq-a">Las cuentas te permiten guardar terremotos en marcadores y sincronizar tus búsquedas guardadas y preferencias de visualización entre dispositivos.</div>
+      <div className="faq-a">Las cuentas te permiten añadir terremotos a favoritos y sincronizar tus búsquedas guardadas y preferencias de visualización entre dispositivos.</div>
     </details>
   </Fragment>
 );
@@ -2752,7 +2752,7 @@ const AboutBodyJa = () => (
     </details>
     <details className="faq-item">
       <summary className="faq-q">アカウントを作成すると何ができますか？</summary>
-      <div className="faq-a">アカウントを作成すると、地震をブックマークに保存でき、保存済みの検索条件や表示設定を複数のデバイス間で同期できます。</div>
+      <div className="faq-a">アカウントを作成すると、地震をブックマークでき、保存済みの検索条件や表示設定を複数のデバイス間で同期できます。</div>
     </details>
   </Fragment>
 );

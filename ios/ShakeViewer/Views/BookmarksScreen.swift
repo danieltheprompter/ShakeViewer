@@ -7,8 +7,8 @@ struct BookmarksScreen: View {
     var body: some View {
         List {
             if account.user == nil {
-                Text(account.isAvailable ? "Saved on this device. Sign in (Settings) to sync with shakeviewer.com."
-                                         : "Saved on this device.")
+                Text(account.isAvailable ? "Bookmarks are stored on this device. Sign in (Settings) to sync them with shakeviewer.com."
+                                         : "Bookmarks are stored on this device.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             if model.bookmarks.isEmpty {
