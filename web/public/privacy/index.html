@@ -47,7 +47,7 @@ footer.bottom a{color:var(--fg-2)}
 <h2>Summary</h2>
 <div class="tablewrap"><table>
 <tr><th></th><th>Website</th><th>iOS app</th></tr>
-<tr><td>Account (optional)</td><td>Email &amp; password or Google sign-in; display name; optional profile photo</td><td>Email &amp; password; optional display name</td></tr>
+<tr><td>Account (optional)</td><td>Email &amp; password, Sign in with Apple, or Google sign-in; display name; optional profile photo</td><td>Email &amp; password, Sign in with Apple, or Google sign-in; optional display name</td></tr>
 <tr><td>Synced content (signed in)</td><td colspan="2">Bookmarks, saved custom searches, terms-acceptance date</td></tr>
 <tr><td>Location</td><td>Optional (Near Me); read from your browser, stored only in your browser</td><td>Optional, “While Using the App” only; stays on your device</td></tr>
 <tr><td>Analytics</td><td>Google Analytics 4 if enabled (see below)</td><td>None</td></tr>
@@ -59,8 +59,8 @@ footer.bottom a{color:var(--fg-2)}
 <p>Earthquake data is fetched directly from the U.S. Geological Survey (USGS) and the European-Mediterranean Seismological Centre (EMSC). No personally identifying information is sent to them beyond your IP address and standard request headers, which any internet request reveals.</p>
 <h3>Account data (only if you create an account)</h3>
 <ul>
-<li><strong>Website:</strong> email address, display name, optional profile photo, and either a password (stored hashed by Firebase Authentication) or your Google identity if you use <strong>Sign in with Google</strong>. With Google sign-in, Google shares your name, email address and profile picture with us; we do not receive your Google password.</li>
-<li><strong>iOS app:</strong> email address, optional display name, and a password stored hashed by Firebase Authentication. The app does not offer Google sign-in.</li>
+<li><strong>Website:</strong> email address, display name, optional profile photo, and either a password (stored hashed by Firebase Authentication), your Apple ID if you use <strong>Sign in with Apple</strong>, or your Google identity if you use <strong>Sign in with Google</strong>. With Sign in with Apple, Apple shares your name (if you choose to) and either your email address or a private relay address that forwards to it; we do not receive your Apple ID password. With Google sign-in, Google shares your name, email address and profile picture with us; we do not receive your Google password.</li>
+<li><strong>iOS app:</strong> email address, optional display name, and either a password stored hashed by Firebase Authentication or your Apple ID or Google identity if you use Sign in with Apple or Sign in with Google (the same information described above).</li>
 </ul>
 <h3>User content (only if signed in)</h3>
 <p>Bookmarks of earthquakes, saved custom searches (date range, minimum magnitude, optional map area you drew), and the date and version of the Terms and Privacy Policy you accepted. These sync between the website and the app.</p>

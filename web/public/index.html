@@ -318,6 +318,11 @@ input[type=range]::-moz-range-thumb {
 .sv-btn.primary { background: var(--accent); color: #0a0d12; font-weight: 600; }
 .sv-btn.primary:hover { filter: brightness(1.08); background: var(--accent); color: #0a0d12; }
 .sv-btn.ghost { border-color: var(--line-strong); }
+.sv-btn.apple { background: #000; color: #fff; border-color: #000; }
+.sv-btn.apple:hover { background: #1a1a1a; color: #fff; border-color: #000; }
+:root[data-theme="dark"] .sv-btn.apple { background: #fff; color: #000; border-color: #fff; }
+:root[data-theme="dark"] .sv-btn.apple:hover { background: #f2f2f2; color: #000; border-color: #fff; }
+.sv-btn.apple svg { fill: currentColor; }
 .sv-btn.ghost:hover { border-color: var(--accent-border); background: var(--accent-bg); color: var(--accent); }
 .sv-btn.active { background: var(--accent-bg); color: var(--accent); border-color: var(--accent-border); }
 .sv-btn.danger { color: #ef4444; border-color: rgba(239,68,68,0.35); }
@@ -881,7 +886,7 @@ const TRANSLATIONS = {
     from_you: 'from you', people_reported: 'people reported', tsunami_watch: 'Tsunami watch',
     full_report_on: 'Full report on {source}',
     welcome_back: 'Welcome back', create_account: 'Create account',
-    continue_with_google: 'Continue with Google', or: 'OR',
+    continue_with_google: 'Continue with Google', continue_with_apple: 'Continue with Apple', sign_in_with_apple: 'Sign in with Apple', or: 'OR',
     display_name: 'Display name', email: 'Email', password: 'Password',
     current_password: 'Current password', new_password: 'New password',
     update_password: 'Update password', change_password: 'Change password',
@@ -952,7 +957,7 @@ const TRANSLATIONS = {
     from_you: 'de ti', people_reported: 'personas reportaron', tsunami_watch: 'Alerta de tsunami',
     full_report_on: 'Informe completo en {source}',
     welcome_back: 'Bienvenido de nuevo', create_account: 'Crear cuenta',
-    continue_with_google: 'Continuar con Google', or: 'O',
+    continue_with_google: 'Continuar con Google', continue_with_apple: 'Continuar con Apple', sign_in_with_apple: 'Iniciar sesión con Apple', or: 'O',
     display_name: 'Nombre visible', email: 'Correo electrónico', password: 'Contraseña',
     current_password: 'Contraseña actual', new_password: 'Nueva contraseña',
     update_password: 'Actualizar contraseña', change_password: 'Cambiar contraseña',
@@ -1023,7 +1028,7 @@ const TRANSLATIONS = {
     from_you: 'de você', people_reported: 'pessoas relataram', tsunami_watch: 'Alerta de tsunami',
     full_report_on: 'Relatório completo em {source}',
     welcome_back: 'Bem-vindo de volta', create_account: 'Criar conta',
-    continue_with_google: 'Continuar com Google', or: 'OU',
+    continue_with_google: 'Continuar com Google', continue_with_apple: 'Continuar com a Apple', sign_in_with_apple: 'Iniciar sessão com a Apple', or: 'OU',
     display_name: 'Nome de exibição', email: 'E-mail', password: 'Senha',
     current_password: 'Senha atual', new_password: 'Nova senha',
     update_password: 'Atualizar senha', change_password: 'Alterar senha',
@@ -1094,7 +1099,7 @@ const TRANSLATIONS = {
     from_you: 'あなたから', people_reported: '人が報告', tsunami_watch: '津波警報',
     full_report_on: '{source}で詳細を見る',
     welcome_back: 'おかえりなさい', create_account: 'アカウント作成',
-    continue_with_google: 'Googleで続ける', or: 'または',
+    continue_with_google: 'Googleで続ける', continue_with_apple: 'Appleで続ける', sign_in_with_apple: 'Appleでサインイン', or: 'または',
     display_name: '表示名', email: 'メール', password: 'パスワード',
     current_password: '現在のパスワード', new_password: '新しいパスワード',
     update_password: 'パスワードを更新', change_password: 'パスワードを変更',
@@ -1308,11 +1313,53 @@ const LanguageSelect = ({ lang, onChange, compact = false }) => {
 };
 
 /* ─── Hooks ─── */
+const svAuthErrorMessage = (e) => {
+  switch (e && e.code) {
+    case 'auth/popup-closed-by-user':
+    case 'auth/cancelled-popup-request':
+    case 'auth/user-cancelled':
+      return null; // user dismissed the sign-in window; not an error
+    case 'auth/popup-blocked':
+      return 'Your browser blocked the sign-in window. Allow pop-ups for this site and try again.';
+    case 'auth/account-exists-with-different-credential':
+      return 'An account already exists with this email using a different sign-in method. Sign in with that method (email/password or Google) instead.';
+    case 'auth/credential-already-in-use':
+      return 'This Apple ID is already linked to another ShakeViewer account.';
+    case 'auth/operation-not-allowed':
+    case 'auth/invalid-credential':
+    case 'auth/unauthorized-domain':
+      return 'Sign in with Apple isn’t available right now. Please try another sign-in method.';
+    case 'auth/user-mismatch':
+      return 'Please confirm with the same account you’re signed in with.';
+    case 'auth/requires-recent-login':
+      return 'For your security, please sign in again and then retry.';
+    case 'auth/wrong-password':
+      return 'Incorrect password.';
+    case 'auth/network-request-failed':
+      return 'Network error. Check your connection and try again.';
+    default:
+      return (e && e.message) || 'Something went wrong';
+  }
+};
+
 const useAuth = () => {
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   useEffect(() => {
     if (!fAuth) { setAuthLoading(false); return; }
+    // Complete a Sign in with Apple redirect (mobile Safari / popup-blocked fallback).
+    fAuth.getRedirectResult().then(async (r) => {
+      if (r && r.user && r.additionalUserInfo?.isNewUser && fDb) {
+        try {
+          await fDb.collection('users').doc(r.user.uid).set({
+            termsAcceptedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            termsVersion: TERMS_VERSION,
+            privacyPolicyAcceptedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            privacyPolicyVersion: TERMS_VERSION,
+          }, { merge: true });
+        } catch {}
+      }
+    }).catch((e) => { const m = svAuthErrorMessage(e); if (m) console.warn('Sign-in redirect:', m); });
     const unsub = fAuth.onAuthStateChanged(async (u) => {
       if (u && fDb) {
         try {
@@ -1337,6 +1384,17 @@ const useAuth = () => {
     return r;
   };
   const signInGoogle = () => fAuth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
+  const appleProvider = () => { const p = new firebase.auth.OAuthProvider('apple.com'); p.addScope('email'); p.addScope('name'); return p; };
+  const preferRedirect = () => { const ua = navigator.userAgent; return /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1) || (window.matchMedia && matchMedia('(display-mode: standalone)').matches); };
+  const signInApple = async () => {
+    const p = appleProvider();
+    if (preferRedirect()) { await fAuth.signInWithRedirect(p); return null; }
+    try { return await fAuth.signInWithPopup(p); }
+    catch (e) {
+      if (e && (e.code === 'auth/popup-blocked' || e.code === 'auth/operation-not-supported-in-this-environment')) { await fAuth.signInWithRedirect(p); return null; }
+      throw e;
+    }
+  };
   const resetPassword = (e) => fAuth.sendPasswordResetEmail(e);
   const signOut = () => fAuth.signOut();
   const changePassword = async (cur, next) => {
@@ -1347,9 +1405,14 @@ const useAuth = () => {
   };
   const deleteAccount = async (pw) => {
     const u = fAuth.currentUser;
-    if (u.providerData[0]?.providerId === 'password' && pw) {
-      const cred = firebase.auth.EmailAuthProvider.credential(u.email, pw);
-      await u.reauthenticateWithCredential(cred);
+    const pid = u.providerData[0]?.providerId;
+    if (pid === 'password') {
+      if (!pw) { const e = new Error('Enter your password to confirm.'); e.code = 'auth/missing-password'; throw e; }
+      await u.reauthenticateWithCredential(firebase.auth.EmailAuthProvider.credential(u.email, pw));
+    } else if (pid === 'apple.com') {
+      await u.reauthenticateWithPopup(appleProvider());
+    } else if (pid === 'google.com') {
+      await u.reauthenticateWithPopup(new firebase.auth.GoogleAuthProvider());
     }
     const uid = u.uid;
     if (fDb) {
@@ -1368,7 +1431,7 @@ const useAuth = () => {
     if (!u) return;
     setUser(Object.assign(Object.create(Object.getPrototypeOf(u)), u));
   };
-  return { user, authLoading, signInEmail, signUpEmail, signInGoogle, resetPassword, signOut, changePassword, deleteAccount, refreshUser };
+  return { user, authLoading, signInEmail, signUpEmail, signInGoogle, signInApple, resetPassword, signOut, changePassword, deleteAccount, refreshUser };
 };
 
 const useFirestoreCollection = (user, name) => {
@@ -2191,7 +2254,7 @@ const AuthModal = ({ auth, onClose, onOpenTerms, onOpenPrivacy }) => {
 
   const run = async (fn) => {
     setErr(null); setOk(null); setBusy(true);
-    try { await fn(); } catch (e) { setErr(e.message || 'Something went wrong'); } finally { setBusy(false); }
+    try { await fn(); } catch (e) { const m = svAuthErrorMessage(e); if (m) setErr(m); } finally { setBusy(false); }
   };
 
   const signIn = () => run(async () => { await auth.signInEmail(email, password); onClose(); });
@@ -2199,6 +2262,12 @@ const AuthModal = ({ auth, onClose, onOpenTerms, onOpenPrivacy }) => {
     if (!termsOK) throw new Error(t('please_accept_terms'));
     const r = await auth.signUpEmail(email, password, name);
     await writeConsent(r.user.uid);
+    onClose();
+  });
+  const apple = () => run(async () => {
+    const r = await auth.signInApple();
+    if (!r) return; // redirect in progress
+    if (r.additionalUserInfo?.isNewUser) await writeConsent(r.user.uid);
     onClose();
   });
   const google = () => run(async () => {
@@ -2226,6 +2295,10 @@ const AuthModal = ({ auth, onClose, onOpenTerms, onOpenPrivacy }) => {
           </div>
           <button className="sv-btn ghost" style={{ width: '100%', justifyContent: 'center', marginBottom: 14 }} onClick={google} disabled={busy}>
             <SvIcon name="google" size={14}/> {t('continue_with_google')}
+          </button>
+          <button className="sv-btn apple" style={{ width: '100%', justifyContent: 'center', marginTop: -6, marginBottom: 14 }} onClick={apple} disabled={busy} aria-label={mode === 'signin' ? t('sign_in_with_apple') : t('continue_with_apple')}>
+            <svg width="14" height="14" viewBox="0 0 384 512" aria-hidden="true"><path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z"/></svg>
+            {mode === 'signin' ? t('sign_in_with_apple') : t('continue_with_apple')}
           </button>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '14px 0', color: 'var(--fg-3)', fontSize: 11 }}>
             <div style={{ flex: 1, height: 1, background: 'var(--line)' }}/>{t('or')}<div style={{ flex: 1, height: 1, background: 'var(--line)' }}/>
@@ -2279,7 +2352,7 @@ const ProfileModal = ({ user, auth, bookmarksCount, onClose }) => {
 
   const run = async (fn, success) => {
     setMsg(null); setErr(null); setBusy(true);
-    try { await fn(); if (success) setMsg(success); } catch (e) { setErr(e.message); } finally { setBusy(false); }
+    try { await fn(); if (success) setMsg(success); } catch (e) { const m = svAuthErrorMessage(e); if (m) setErr(m); } finally { setBusy(false); }
   };
 
   const selectAvatar = (key) => run(async () => {
@@ -2339,6 +2412,7 @@ const ProfileModal = ({ user, auth, bookmarksCount, onClose }) => {
   });
 
   const isEmailUser = user.providerData[0]?.providerId === 'password';
+  const reauthProvider = user.providerData[0]?.providerId;
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -2414,6 +2488,8 @@ const ProfileModal = ({ user, auth, bookmarksCount, onClose }) => {
               </p>
               <input className="sv-input" value={delConfirm} onChange={e => setDelConfirm(e.target.value)} placeholder={t('type_delete')} style={{ marginBottom: 6 }}/>
               {isEmailUser && <input className="sv-input" type="password" value={delPw} onChange={e => setDelPw(e.target.value)} placeholder={t('password')} style={{ marginBottom: 8 }}/>}
+              {reauthProvider === 'apple.com' && <p style={{ fontSize: 12, color: 'var(--fg-2)', lineHeight: 1.5, marginBottom: 8 }}>You’ll be asked to confirm with Sign in with Apple.</p>}
+              {reauthProvider === 'google.com' && <p style={{ fontSize: 12, color: 'var(--fg-2)', lineHeight: 1.5, marginBottom: 8 }}>You’ll be asked to confirm with Google.</p>}
               <button className="sv-btn danger" onClick={deleteMe} disabled={busy || delConfirm !== 'DELETE'}>{t('delete_my_account')}</button>
             </div>
           </details>
