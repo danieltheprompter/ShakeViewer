@@ -115,7 +115,7 @@ struct PrivacyPolicyScreen: View {
             Bullet("**Location** (optional, “While Using the App” only): used on your device to show nearby earthquakes and distances. Your location is never uploaded to our servers or shared.")
             Bullet("**Preferences** (theme, map style, filters, local history) are stored only on your device.")
             H("What we don't do")
-            Text("The iOS app contains no advertising, no analytics or tracking SDKs, and does not track you across apps or websites. We do not sell, rent, or share your data with advertisers.")
+            Text("ShakeViewer does not show ads and never sells your data. The iOS app contains no analytics or tracking SDKs and does not track you across apps or websites. We do not rent or share your data with advertisers.")
             H("How data is used and stored")
             Text("Account data and synced content are stored in Google Firebase (Authentication and Cloud Firestore) solely to provide ShakeViewer features such as syncing bookmarks between the app and shakeviewer.com. Google acts as our service provider and protects this data under its own security and privacy commitments. Data is transmitted over encrypted HTTPS connections.")
             H("Retention and deletion")
