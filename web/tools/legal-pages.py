@@ -1,7 +1,7 @@
 # Generates public/{privacy,terms,support}/index.html (static, no JS required).
 import os, html
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'public')
-EFFECTIVE = '2026-10-14'
+EFFECTIVE = '2026-10-16'
 TERMS_VERSION = '2026-02-16'
 CONTACT_HTML = '<a href="mailto:danieltheprompter@gmail.com">danieltheprompter@gmail.com</a>'
 
@@ -70,7 +70,7 @@ privacy = f"""<p class="meta">Effective {EFFECTIVE} · Applies to shakeviewer.co
 <tr><td>Account (optional)</td><td>Email &amp; password, Sign in with Apple, or Google sign-in; display name; optional profile photo</td><td>Email &amp; password, Sign in with Apple, or Google sign-in; optional display name</td></tr>
 <tr><td>Synced content (signed in)</td><td colspan="2">Bookmarks, saved custom searches, terms-acceptance date</td></tr>
 <tr><td>Location</td><td>Optional (Near Me); read from your browser, stored only in your browser</td><td>Optional, “While Using the App” only; stays on your device</td></tr>
-<tr><td>Analytics</td><td>Google Analytics 4 if enabled (see below)</td><td>None</td></tr>
+<tr><td>Analytics</td><td>Google Analytics 4, only if you accept analytics cookies (see below)</td><td>None</td></tr>
 <tr><td>Advertising / tracking</td><td colspan="2">None. We do not sell or share your data with advertisers, and we do not track you across other companies’ apps or websites.</td></tr>
 </table></div>
 
@@ -88,8 +88,12 @@ privacy = f"""<p class="meta">Effective {EFFECTIVE} · Applies to shakeviewer.co
 <p>Location is always optional. On the website the Near Me feature reads your approximate coordinates from your browser and stores them only in your browser. In the iOS app location is requested only when you tap “Show my location”, is limited to “While Using the App”, is used on your device to centre the map and calculate distances, and is <strong>never uploaded to our servers or shared</strong>. Custom-search map areas are drawn by you and are not your device location.</p>
 <h3>Preferences stored on your device</h3>
 <p>Theme, map style, filters, fault-line toggle and local search history are stored in your browser’s local storage or in the app’s on-device storage and are not sent to us.</p>
-<h3>Analytics (website only)</h3>
-<p>The website’s configuration includes a Google Analytics 4 measurement ID. When analytics is enabled, Google Analytics records pseudonymous usage events (such as page views and approximate region derived from IP address) to help us understand how the site is used. You can block it with your browser’s tracking protection or the <a href="https://tools.google.com/dlpage/gaoptout">Google Analytics opt-out add-on</a>. The iOS app contains <strong>no analytics, advertising or tracking SDKs</strong>.</p>
+<h3>Analytics and cookies (website only)</h3>
+<p>The website uses <strong>Google Analytics 4</strong> (provided by Google LLC / Google Ireland Ltd.) only if you choose <strong>Accept</strong> in the cookie banner. Until you accept, Google Analytics is not loaded and no analytics cookies are set; we use Google Consent Mode with all storage denied by default. If you accept, we grant analytics storage only &mdash; advertising storage, ad personalization, ad user data and Google signals stay off.</p>
+<p><strong>What is collected:</strong> pseudonymous usage events such as page views, sign-up and sign-in (with the method used: email, Apple or Google), adding a bookmark, running a custom search (minimum magnitude and whether an area was drawn) and changing the language, together with technical data your browser sends (device and browser type, screen size, approximate location derived from your IP address, referrer). IP addresses are not stored by Google Analytics 4. We do not send your name, email address or account ID to Google Analytics.</p>
+<p><strong>Cookies:</strong> Google Analytics sets first-party cookies named <code>_ga</code> and <code>_ga_&lt;ID&gt;</code> (up to 2 years) to distinguish visits. Your choice itself is stored in your browser&rsquo;s local storage (<code>sv_cookie_consent</code>), not in a cookie. Firebase Authentication stores your sign-in session in your browser&rsquo;s local storage; this is strictly necessary for signing in and is not used for analytics.</p>
+<p><strong>Opt-out:</strong> you can decline in the banner, or change your choice at any time via <strong>Cookie settings</strong> in the website footer (or the About dialog on mobile). You can also block Google Analytics with your browser&rsquo;s tracking protection or the <a href="https://tools.google.com/dlpage/gaoptout">Google Analytics opt-out add-on</a>.</p>
+<p><strong>Google as processor:</strong> Google processes analytics data on our behalf as a service provider/processor under the Google Ads Data Processing Terms, and data may be transferred to and processed in the United States under Google&rsquo;s standard contractual clauses. Analytics data is retained for 14 months. See <a href="https://policies.google.com/technologies/partner-sites">how Google uses information from sites that use its services</a>. The iOS app contains <strong>no analytics, advertising or tracking SDKs</strong>.</p>
 
 <h2>How data is used and who processes it</h2>
 <p>Account data and synced content are stored in Google Firebase (Firebase Authentication and Cloud Firestore, operated by Google LLC) solely to provide ShakeViewer features such as signing in and syncing bookmarks. Google acts as our service provider and protects this data under its own security and privacy commitments, which provide at least the same level of protection described here. The website is hosted by Netlify, which processes standard server logs (IP address, user agent) to deliver the site. Map tiles are loaded from CARTO/Esri on the website and Apple Maps in the iOS app, which receive your IP address when tiles are requested. All connections use HTTPS.</p>

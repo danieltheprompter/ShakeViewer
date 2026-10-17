@@ -102,6 +102,76 @@
   }
 </script>
 
+<!-- Analytics: Google Analytics 4 (gtag) with Consent Mode v2. Nothing loads from Google until the visitor accepts. -->
+<script>
+(function () {
+  var GA_ID = '__FIREBASE_MEASUREMENT_ID__'; // set at build time (env FIREBASE_MEASUREMENT_ID); '' or placeholder = analytics off
+  var enabled = /^G-[A-Z0-9]+$/.test(GA_ID);
+  var KEY = 'sv_cookie_consent'; // 'granted' | 'denied'
+  window.dataLayer = window.dataLayer || [];
+  function gtag() { window.dataLayer.push(arguments); }
+  window.gtag = gtag;
+  gtag('consent', 'default', { analytics_storage: 'denied', ad_storage: 'denied', ad_user_data: 'denied', ad_personalization: 'denied', wait_for_update: 500 });
+  var loaded = false;
+  function load() {
+    if (!enabled || loaded) return; loaded = true;
+    gtag('consent', 'update', { analytics_storage: 'granted' });
+    gtag('js', new Date());
+    gtag('config', GA_ID, { anonymize_ip: true, allow_google_signals: false, allow_ad_personalization_signals: false });
+    var s = document.createElement('script'); s.async = true;
+    s.src = 'https://www.googletagmanager.com/gtag/js?id=' + encodeURIComponent(GA_ID);
+    document.head.appendChild(s);
+  }
+  function get() { try { return localStorage.getItem(KEY); } catch (e) { return null; } }
+  function set(v) { try { localStorage.setItem(KEY, v); } catch (e) {} }
+  // Public helper for app events; no-op unless consent was granted.
+  window.svTrack = function (name, params) { if (enabled && loaded) gtag('event', name, params || {}); };
+  var L = {
+    en: { msg: 'We use Google Analytics cookies to understand how ShakeViewer is used. No ads, no selling of data.', accept: 'Accept', decline: 'Decline', more: 'Privacy Policy' },
+    es: { msg: 'Usamos cookies de Google Analytics para entender cómo se usa ShakeViewer. Sin anuncios ni venta de datos.', accept: 'Aceptar', decline: 'Rechazar', more: 'Política de privacidad' },
+    pt: { msg: 'Usamos cookies do Google Analytics para entender como o ShakeViewer é usado. Sem anúncios e sem venda de dados.', accept: 'Aceitar', decline: 'Recusar', more: 'Política de privacidade' },
+    ja: { msg: 'ShakeViewerの利用状況を把握するためにGoogleアナリティクスのCookieを使用します。広告やデータの販売は行いません。', accept: '同意する', decline: '拒否する', more: 'プライバシーポリシー' }
+  };
+  function lang() { var l = (document.documentElement.getAttribute('lang') || 'en').slice(0, 2); return L[l] ? l : 'en'; }
+  function hide() { var b = document.getElementById('sv-consent'); if (b) b.remove(); }
+  function show() {
+    if (!enabled) return;
+    hide();
+    var s = L[lang()];
+    var b = document.createElement('div'); b.id = 'sv-consent'; b.setAttribute('role', 'dialog'); b.setAttribute('aria-live', 'polite'); b.setAttribute('aria-label', 'Cookie consent');
+    b.innerHTML = '<p></p><div class="sv-consent-actions"><a href="/privacy" target="_blank" rel="noopener"></a><button type="button" class="decline"></button><button type="button" class="accept"></button></div>';
+    b.querySelector('p').textContent = s.msg; b.querySelector('a').textContent = s.more;
+    b.querySelector('.decline').textContent = s.decline; b.querySelector('.accept').textContent = s.accept;
+    b.querySelector('.accept').onclick = function () { set('granted'); hide(); load(); };
+    b.querySelector('.decline').onclick = function () {
+      var was = get(); set('denied'); hide();
+      if (was === 'granted' && loaded) location.reload(); // fully unload GA after withdrawing consent
+    };
+    document.body.appendChild(b);
+  }
+  window.svOpenCookieSettings = show;
+  window.svAnalyticsEnabled = enabled;
+  var c = get();
+  if (c === 'granted') load();
+  else if (c !== 'denied') {
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function () { setTimeout(show, 600); });
+    else setTimeout(show, 600);
+  }
+})();
+</script>
+<style>
+#sv-consent { position: fixed; z-index: 10000; left: 50%; transform: translateX(-50%); bottom: calc(16px + env(safe-area-inset-bottom)); width: min(560px, calc(100vw - 24px));
+  background: rgba(17,20,26,0.96); color: #e6e8eb; border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.45);
+  padding: 12px 14px; font: 12.5px/1.45 var(--font-sans, system-ui, sans-serif); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+:root[data-theme="light"] #sv-consent { background: rgba(255,255,255,0.97); color: #1b1f24; border-color: rgba(0,0,0,0.12); box-shadow: 0 10px 30px rgba(0,0,0,0.15); }
+#sv-consent p { margin: 0 0 10px; }
+#sv-consent .sv-consent-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+#sv-consent a { color: var(--accent, #22d3ee); margin-right: auto; font-size: 12px; }
+#sv-consent button { font: inherit; font-weight: 500; padding: 6px 14px; border-radius: 8px; cursor: pointer; border: 1px solid rgba(127,127,127,0.35); background: transparent; color: inherit; }
+#sv-consent button.accept { background: var(--accent, #22d3ee); color: #0a0d12; border-color: transparent; }
+@media (max-width: 640px) { #sv-consent { bottom: calc(76px + env(safe-area-inset-bottom)); font-size: 12px; padding: 10px 12px; } }
+</style>
+
 <style>
 /* ─── Design tokens ─── */
 :root {
@@ -841,6 +911,7 @@ input[type=range]::-moz-range-thumb {
 /* ─────────────────────────────────────────────────────────────────────── */
 
 const { useState, useEffect, useMemo, useCallback, useRef, Fragment } = React;
+const svTrack = (n, p) => { try { window.svTrack && window.svTrack(n, p); } catch {} };
 
 const fAuth = window.firebaseAuth;
 const fDb = window.firebaseDb;
@@ -891,7 +962,7 @@ const TRANSLATIONS = {
     current_password: 'Current password', new_password: 'New password',
     update_password: 'Update password', change_password: 'Change password',
     i_agree: 'I agree to the', and_word: 'and',
-    terms_of_use: 'Terms of Use', privacy_policy: 'Privacy Policy',
+    terms_of_use: 'Terms of Use', cookie_settings: 'Cookie settings', privacy_policy: 'Privacy Policy',
     forgot_password: 'Forgot password?', reset_email_sent: 'Reset email sent',
     please_wait: 'Please wait…', please_accept_terms: 'Please accept the Terms to continue',
     enter_email_first: 'Enter your email first',
@@ -962,7 +1033,7 @@ const TRANSLATIONS = {
     current_password: 'Contraseña actual', new_password: 'Nueva contraseña',
     update_password: 'Actualizar contraseña', change_password: 'Cambiar contraseña',
     i_agree: 'Acepto los', and_word: 'y',
-    terms_of_use: 'Términos de uso', privacy_policy: 'Política de privacidad',
+    terms_of_use: 'Términos de uso', cookie_settings: 'Configuración de cookies', privacy_policy: 'Política de privacidad',
     forgot_password: '¿Olvidaste tu contraseña?', reset_email_sent: 'Correo de restablecimiento enviado',
     please_wait: 'Espera…', please_accept_terms: 'Acepta los Términos para continuar',
     enter_email_first: 'Ingresa tu correo primero',
@@ -1033,7 +1104,7 @@ const TRANSLATIONS = {
     current_password: 'Senha atual', new_password: 'Nova senha',
     update_password: 'Atualizar senha', change_password: 'Alterar senha',
     i_agree: 'Eu concordo com os', and_word: 'e',
-    terms_of_use: 'Termos de uso', privacy_policy: 'Política de privacidade',
+    terms_of_use: 'Termos de uso', cookie_settings: 'Configurações de cookies', privacy_policy: 'Política de privacidade',
     forgot_password: 'Esqueceu a senha?', reset_email_sent: 'E-mail de redefinição enviado',
     please_wait: 'Aguarde…', please_accept_terms: 'Aceite os Termos para continuar',
     enter_email_first: 'Digite seu e-mail primeiro',
@@ -1104,7 +1175,7 @@ const TRANSLATIONS = {
     current_password: '現在のパスワード', new_password: '新しいパスワード',
     update_password: 'パスワードを更新', change_password: 'パスワードを変更',
     i_agree: '同意します', and_word: 'と',
-    terms_of_use: '利用規約', privacy_policy: 'プライバシーポリシー',
+    terms_of_use: '利用規約', cookie_settings: 'Cookie設定', privacy_policy: 'プライバシーポリシー',
     forgot_password: 'パスワードをお忘れですか?', reset_email_sent: 'リセットメールを送信しました',
     please_wait: 'お待ちください…', please_accept_terms: '続けるには利用規約に同意してください',
     enter_email_first: 'まずメールアドレスを入力してください',
@@ -2304,10 +2375,11 @@ const AuthModal = ({ auth, onClose, onOpenTerms, onOpenPrivacy }) => {
     try { await fn(); } catch (e) { const m = svAuthErrorMessage(e); if (m) setErr(m); } finally { setBusy(false); }
   };
 
-  const signIn = () => run(async () => { await auth.signInEmail(email, password); onClose(); });
+  const signIn = () => run(async () => { await auth.signInEmail(email, password); svTrack('login', { method: 'password' }); onClose(); });
   const signUp = () => run(async () => {
     if (!termsOK) throw new Error(t('please_accept_terms'));
     const r = await auth.signUpEmail(email, password, name);
+    svTrack('sign_up', { method: 'password' });
     await writeConsent(r.user.uid);
     onClose();
   });
@@ -2315,11 +2387,13 @@ const AuthModal = ({ auth, onClose, onOpenTerms, onOpenPrivacy }) => {
     const r = await auth.signInApple();
     if (!r) return; // redirect in progress
     await auth.saveAppleName(r);
+    svTrack(r.additionalUserInfo?.isNewUser ? 'sign_up' : 'login', { method: 'apple' });
     if (r.additionalUserInfo?.isNewUser) await writeConsent(r.user.uid);
     onClose();
   });
   const google = () => run(async () => {
     const r = await auth.signInGoogle();
+    svTrack(r.additionalUserInfo?.isNewUser ? 'sign_up' : 'login', { method: 'google' });
     if (r.additionalUserInfo?.isNewUser) await writeConsent(r.user.uid);
     onClose();
   });
@@ -2793,7 +2867,7 @@ const PrivacyBodyEn = () => (
     <h3>How data is used</h3>
     <p>Your account data and user content are stored in Firebase (Google Cloud) and used solely to provide ShakeViewer features. We do not sell, rent, or share your data with advertisers.</p>
     <h3>Analytics</h3>
-    <p>This app includes a Google Analytics 4 measurement ID. If enabled, it records anonymized usage events. You can opt out using the Google Analytics opt-out browser add-on.</p>
+    <p>The website uses Google Analytics 4 only if you accept analytics cookies in the cookie banner. It then records pseudonymous usage events (page views, sign-in method, bookmarks added, custom searches, language changes); no ads or ad personalization. You can change your choice any time under Cookie settings. See the full Privacy Policy at shakeviewer.com/privacy.</p>
     <h3>Your rights</h3>
     <p>You may delete your account at any time from the Profile page — this erases your bookmarks, search history, and user record from our systems.</p>
     <h3>Contact</h3>
@@ -2815,7 +2889,7 @@ const PrivacyBodyEs = () => (
     <h3>Uso de los datos</h3>
     <p>Los datos de cuenta y el contenido del usuario se almacenan en Firebase (Google Cloud) y se utilizan exclusivamente para proporcionar las funciones de ShakeViewer. Los datos no se venden, alquilan ni comparten con anunciantes.</p>
     <h3>Analítica</h3>
-    <p>Esta aplicación incluye un identificador de medición de Google Analytics 4. Cuando está habilitado, registra eventos de uso de forma anonimizada. El usuario puede optar por no participar mediante el complemento de inhabilitación de Google Analytics para navegadores.</p>
+    <p>El sitio web usa Google Analytics 4 solo si aceptas las cookies de analítica en el aviso de cookies. En ese caso registra eventos de uso seudónimos (páginas vistas, método de inicio de sesión, favoritos añadidos, búsquedas personalizadas, cambios de idioma), sin anuncios ni personalización publicitaria. Puedes cambiar tu elección en cualquier momento en Configuración de cookies. Consulta la Política de privacidad completa en shakeviewer.com/privacy.</p>
     <h3>Sus derechos</h3>
     <p>El usuario puede eliminar su cuenta en cualquier momento desde la página de Perfil; esta acción borra sus marcadores, su historial de búsquedas y su registro de usuario de nuestros sistemas.</p>
     <h3>Contacto</h3>
@@ -2837,7 +2911,7 @@ const PrivacyBodyPt = () => (
     <h3>Como os dados são utilizados</h3>
     <p>Os dados da conta e o conteúdo do usuário são armazenados no Firebase (Google Cloud) e utilizados exclusivamente para fornecer os recursos do ShakeViewer. Seus dados não são vendidos, alugados nem compartilhados com anunciantes.</p>
     <h3>Análise de uso</h3>
-    <p>Este aplicativo inclui um ID de medição do Google Analytics 4. Quando habilitado, registra eventos de uso de forma anonimizada. Você pode optar por não participar utilizando o complemento de desativação do Google Analytics para navegadores.</p>
+    <p>O site usa o Google Analytics 4 somente se você aceitar os cookies de análise no aviso de cookies. Nesse caso, registra eventos de uso pseudônimos (visualizações de página, método de login, favoritos adicionados, buscas personalizadas, mudanças de idioma), sem anúncios nem personalização de anúncios. Você pode mudar sua escolha a qualquer momento em Configurações de cookies. Veja a Política de privacidade completa em shakeviewer.com/privacy.</p>
     <h3>Seus direitos</h3>
     <p>Você pode excluir sua conta a qualquer momento na página Perfil — essa ação apaga seus favoritos, seu histórico de buscas e seu registro de usuário dos nossos sistemas.</p>
     <h3>Contato</h3>
@@ -2859,7 +2933,7 @@ const PrivacyBodyJa = () => (
     <h3>データの利用方法</h3>
     <p>アカウント情報およびユーザーコンテンツは、Firebase（Google Cloud）に保存され、ShakeViewerの機能を提供する目的にのみ利用されます。お客様のデータを広告主に販売、貸与、または共有することはありません。</p>
     <h3>アクセス解析</h3>
-    <p>本アプリケーションにはGoogle Analytics 4の測定IDが含まれています。有効化されている場合、匿名化された利用イベントが記録されます。Google Analyticsオプトアウト用ブラウザアドオンを利用することで、収集を無効化できます。</p>
+    <p>本ウェブサイトは、Cookieバナーで分析用Cookieに同意した場合にのみGoogleアナリティクス4を使用します。その場合、仮名化された利用イベント(ページビュー、ログイン方法、ブックマークの追加、カスタム検索、言語の変更)を記録します。広告や広告のパーソナライズは行いません。選択は「Cookie設定」からいつでも変更できます。詳しくは shakeviewer.com/privacy のプライバシーポリシーをご覧ください。</p>
     <h3>お客様の権利</h3>
     <p>お客様は、プロフィールページからいつでもアカウントを削除できます。削除を行うと、ブックマーク、検索履歴、およびユーザーレコードが当社のシステムから消去されます。</p>
     <h3>お問い合わせ</h3>
@@ -2975,6 +3049,7 @@ const AboutModal = ({ onClose, onOpenPrivacy, onOpenTerms }) => (
       <div className="modal-footer">
         <button className="sv-btn" onClick={onOpenPrivacy}>{t('privacy')}</button>
         <button className="sv-btn" onClick={onOpenTerms}>{t('terms')}</button>
+        {window.svAnalyticsEnabled && <button className="sv-btn" onClick={() => window.svOpenCookieSettings && window.svOpenCookieSettings()}>{t('cookie_settings')}</button>}
         <button className="sv-btn primary" onClick={onClose}>{t('close')}</button>
       </div>
     </div>
@@ -3367,6 +3442,7 @@ const Footer = ({ onAbout, onPrivacy, onTerms, onFaq }) => (
       <button onClick={onFaq}>{t('faq')}</button>
       <button onClick={onPrivacy}>{t('privacy')}</button>
       <button onClick={onTerms}>{t('terms')}</button>
+      {window.svAnalyticsEnabled && <button onClick={() => window.svOpenCookieSettings && window.svOpenCookieSettings()}>{t('cookie_settings')}</button>}
       <a href="/support">Support</a>
     </div>
   </footer>
@@ -3468,6 +3544,8 @@ const App = () => {
   });
   currentLang = lang;
   useEffect(() => { try { localStorage.setItem('sv_lang', lang); } catch {} document.documentElement.setAttribute('lang', lang); }, [lang]);
+  const firstLang = useRef(true);
+  useEffect(() => { if (firstLang.current) { firstLang.current = false; return; } svTrack('language_change', { language: lang }); }, [lang]);
 
   // UI
   const [isDark, setIsDark] = useState(true);
@@ -3677,6 +3755,7 @@ const App = () => {
     const minM = overrides.minMag ?? customMinMag;
     const bounds = overrides.bounds !== undefined ? overrides.bounds : searchBounds;
     setLoading(true); setFetchError(null);
+    svTrack('custom_search_used', { min_magnitude: Number(minM) || 0, bounded: !!bounds });
     const boundsQ = bounds ? `&minlatitude=${bounds.minLat}&maxlatitude=${bounds.maxLat}&minlongitude=${bounds.minLon}&maxlongitude=${bounds.maxLon}` : '';
     const usgsUrl = `https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&starttime=${start}&endtime=${end}T23:59:59&minmagnitude=${minM}${boundsQ}&limit=2500&orderby=time`;
     const emscBoundsQ = bounds ? `&minlat=${bounds.minLat}&maxlat=${bounds.maxLat}&minlon=${bounds.minLon}&maxlon=${bounds.maxLon}` : '';
@@ -3828,7 +3907,7 @@ const App = () => {
           source: q.source || 'USGS', felt: q.properties.felt || 0, url: q.properties.url || '',
           note: '',
         });
-        showToast(t('bookmarked'));
+        showToast(t('bookmarked')); svTrack('bookmark_add', { synced: true });
       }
     } else {
       const existing = localBookmarks.find(b => b.quakeId === q.id);
@@ -3842,7 +3921,7 @@ const App = () => {
           depth: q.geometry.coordinates[2], source: q.source || 'USGS', felt: q.properties.felt || 0,
           url: q.properties.url || '', note: '',
         }, ...prev]);
-        showToast(t('bookmarked_local'));
+        showToast(t('bookmarked_local')); svTrack('bookmark_add', { synced: false });
       }
     }
   }, [user, bookmarksCol.data, localBookmarks]);

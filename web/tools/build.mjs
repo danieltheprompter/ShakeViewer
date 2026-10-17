@@ -17,7 +17,12 @@ fs.writeFileSync(path.join(dist, `assets/app.${hash}.js`), code);
 const cartoKey = process.env.CARTO_BASEMAPS_KEY || '';
 if (!cartoKey) console.warn('warning: CARTO_BASEMAPS_KEY not set; build will use Esri tiles only');
 if (!/^[A-Za-z0-9_\-.]*$/.test(cartoKey)) throw new Error('CARTO_BASEMAPS_KEY has unexpected characters');
+// GA4 measurement ID (not secret). Single config value: env FIREBASE_MEASUREMENT_ID overrides the default; set it to '' to build with analytics off.
+const GA_ID = process.env.FIREBASE_MEASUREMENT_ID ?? 'G-SYYSK1WN42';
+if (GA_ID && !/^G-[A-Z0-9]+$/.test(GA_ID)) throw new Error('FIREBASE_MEASUREMENT_ID must look like G-XXXXXXX');
+if (!GA_ID) console.warn('warning: FIREBASE_MEASUREMENT_ID empty; analytics and cookie banner disabled');
 let html = src.slice(0, i) + `<script src="/assets/app.${hash}.js"></script>` + src.slice(j + 9);
+html = html.replace("'__FIREBASE_MEASUREMENT_ID__'", JSON.stringify(GA_ID));
 html = html.replace(/\s*<script src="https:\/\/unpkg\.com\/@babel\/standalone[^>]*><\/script>/, '');
 if (html.includes('babel')) console.warn('warning: babel still referenced');
 fs.writeFileSync(path.join(dist, 'index.html'), html);
