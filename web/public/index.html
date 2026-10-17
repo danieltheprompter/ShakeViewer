@@ -886,7 +886,7 @@ const TRANSLATIONS = {
     from_you: 'from you', people_reported: 'people reported', tsunami_watch: 'Tsunami watch',
     full_report_on: 'Full report on {source}',
     welcome_back: 'Welcome back', create_account: 'Create account',
-    continue_with_google: 'Continue with Google', continue_with_apple: 'Continue with Apple', sign_in_with_apple: 'Sign in with Apple', or: 'OR',
+    continue_with_google: 'Continue with Google', continue_with_apple: 'Continue with Apple', sign_in_with_apple: 'Sign in with Apple', shakeviewer_user: 'ShakeViewer user', or: 'OR',
     display_name: 'Display name', email: 'Email', password: 'Password',
     current_password: 'Current password', new_password: 'New password',
     update_password: 'Update password', change_password: 'Change password',
@@ -957,7 +957,7 @@ const TRANSLATIONS = {
     from_you: 'de ti', people_reported: 'personas reportaron', tsunami_watch: 'Alerta de tsunami',
     full_report_on: 'Informe completo en {source}',
     welcome_back: 'Bienvenido de nuevo', create_account: 'Crear cuenta',
-    continue_with_google: 'Continuar con Google', continue_with_apple: 'Continuar con Apple', sign_in_with_apple: 'Iniciar sesión con Apple', or: 'O',
+    continue_with_google: 'Continuar con Google', continue_with_apple: 'Continuar con Apple', sign_in_with_apple: 'Iniciar sesión con Apple', shakeviewer_user: 'Usuario de ShakeViewer', or: 'O',
     display_name: 'Nombre visible', email: 'Correo electrónico', password: 'Contraseña',
     current_password: 'Contraseña actual', new_password: 'Nueva contraseña',
     update_password: 'Actualizar contraseña', change_password: 'Cambiar contraseña',
@@ -1028,7 +1028,7 @@ const TRANSLATIONS = {
     from_you: 'de você', people_reported: 'pessoas relataram', tsunami_watch: 'Alerta de tsunami',
     full_report_on: 'Relatório completo em {source}',
     welcome_back: 'Bem-vindo de volta', create_account: 'Criar conta',
-    continue_with_google: 'Continuar com Google', continue_with_apple: 'Continuar com a Apple', sign_in_with_apple: 'Iniciar sessão com a Apple', or: 'OU',
+    continue_with_google: 'Continuar com Google', continue_with_apple: 'Continuar com a Apple', sign_in_with_apple: 'Iniciar sessão com a Apple', shakeviewer_user: 'Usuário do ShakeViewer', or: 'OU',
     display_name: 'Nome de exibição', email: 'E-mail', password: 'Senha',
     current_password: 'Senha atual', new_password: 'Nova senha',
     update_password: 'Atualizar senha', change_password: 'Alterar senha',
@@ -1099,7 +1099,7 @@ const TRANSLATIONS = {
     from_you: 'あなたから', people_reported: '人が報告', tsunami_watch: '津波警報',
     full_report_on: '{source}で詳細を見る',
     welcome_back: 'おかえりなさい', create_account: 'アカウント作成',
-    continue_with_google: 'Googleで続ける', continue_with_apple: 'Appleで続ける', sign_in_with_apple: 'Appleでサインイン', or: 'または',
+    continue_with_google: 'Googleで続ける', continue_with_apple: 'Appleで続ける', sign_in_with_apple: 'Appleでサインイン', shakeviewer_user: 'ShakeViewerユーザー', or: 'または',
     display_name: '表示名', email: 'メール', password: 'パスワード',
     current_password: '現在のパスワード', new_password: '新しいパスワード',
     update_password: 'パスワードを更新', change_password: 'パスワードを変更',
@@ -1271,9 +1271,29 @@ const AVATAR_SVGS = {
 };
 const svgToDataUri = (svg) => 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
 
+// Apple "Hide My Email" relay addresses have random local parts; never show them as a name.
+const svIsRelayEmail = (e) => /@privaterelay\.appleid\.com$/i.test(e || '');
+// The user's real display name, or '' if unset (a name equal to a relay-email local part counts as unset).
+const svRealName = (u) => {
+  const n = (u?.displayName || '').trim();
+  if (!n) return '';
+  if (svIsRelayEmail(u?.email) && n.toLowerCase() === u.email.split('@')[0].toLowerCase()) return '';
+  return n;
+};
+// Name to show: real name, else email local part (non-relay emails only), else the localized fallback.
+const svShownName = (u, t) => svRealName(u) || (u?.email && !svIsRelayEmail(u.email) ? u.email.split('@')[0] : '') || t('shakeviewer_user');
+// Best-effort full name from a Sign in with Apple result (Apple sends it only on first authorization).
+const svAppleName = (r) => {
+  const p = r?.additionalUserInfo?.profile || {};
+  const nm = p.name;
+  const parts = typeof nm === 'string' ? [nm] : nm ? [nm.firstName, nm.lastName] : [p.given_name || p.firstName, p.family_name || p.lastName];
+  const full = parts.filter(Boolean).join(' ').trim();
+  return full || svRealName(r?.user) || '';
+};
+
 const AvatarDisplay = ({ user, size = 32 }) => {
   const fs = Math.max(10, size * 0.42);
-  const initial = user?.displayName?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || '?';
+  const initial = svRealName(user)?.[0]?.toUpperCase() || (user?.email && !svIsRelayEmail(user.email) ? user.email[0].toUpperCase() : '') || 'S';
   return (
     <div className="avatar" style={{ width: size, height: size, fontSize: fs }}>
       {user?.photoURL
@@ -1349,6 +1369,7 @@ const useAuth = () => {
     if (!fAuth) { setAuthLoading(false); return; }
     // Complete a Sign in with Apple redirect (mobile Safari / popup-blocked fallback).
     fAuth.getRedirectResult().then(async (r) => {
+      if (r && r.user && r.credential?.providerId === 'apple.com') await saveAppleName(r);
       if (r && r.user && r.additionalUserInfo?.isNewUser && fDb) {
         try {
           await fDb.collection('users').doc(r.user.uid).set({
@@ -1386,6 +1407,15 @@ const useAuth = () => {
   const signInGoogle = () => fAuth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
   const appleProvider = () => { const p = new firebase.auth.OAuthProvider('apple.com'); p.addScope('email'); p.addScope('name'); return p; };
   const preferRedirect = () => { const ua = navigator.userAgent; return /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1) || (window.matchMedia && matchMedia('(display-mode: standalone)').matches); };
+  const saveAppleName = async (r) => {
+    const n = svAppleName(r);
+    if (!r?.user || !n || svRealName(r.user) === n) return;
+    try {
+      await r.user.updateProfile({ displayName: n });
+      if (fDb) await fDb.collection('users').doc(r.user.uid).set({ displayName: n }, { merge: true });
+      refreshUser();
+    } catch {}
+  };
   const signInApple = async () => {
     const p = appleProvider();
     if (preferRedirect()) { await fAuth.signInWithRedirect(p); return null; }
@@ -1431,7 +1461,7 @@ const useAuth = () => {
     if (!u) return;
     setUser(Object.assign(Object.create(Object.getPrototypeOf(u)), u));
   };
-  return { user, authLoading, signInEmail, signUpEmail, signInGoogle, signInApple, resetPassword, signOut, changePassword, deleteAccount, refreshUser };
+  return { user, authLoading, signInEmail, signUpEmail, signInGoogle, signInApple, saveAppleName, resetPassword, signOut, changePassword, deleteAccount, refreshUser };
 };
 
 const useFirestoreCollection = (user, name) => {
@@ -2267,6 +2297,7 @@ const AuthModal = ({ auth, onClose, onOpenTerms, onOpenPrivacy }) => {
   const apple = () => run(async () => {
     const r = await auth.signInApple();
     if (!r) return; // redirect in progress
+    await auth.saveAppleName(r);
     if (r.additionalUserInfo?.isNewUser) await writeConsent(r.user.uid);
     onClose();
   });
@@ -2341,7 +2372,7 @@ const AuthModal = ({ auth, onClose, onOpenTerms, onOpenPrivacy }) => {
 
 /* ─── Profile Modal ─── */
 const ProfileModal = ({ user, auth, bookmarksCount, onClose }) => {
-  const [name, setName] = useState(user.displayName || '');
+  const [name, setName] = useState(svRealName(user));
   const [editingName, setEditingName] = useState(false);
   const [pickingAvatar, setPickingAvatar] = useState(false);
   const [cur, setCur] = useState(''); const [next, setNext] = useState('');
@@ -2437,7 +2468,7 @@ const ProfileModal = ({ user, auth, bookmarksCount, onClose }) => {
                 )
                 : (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <div className="display" style={{ fontSize: 20, color: 'var(--fg-0)' }}>{user.displayName || user.email?.split('@')[0]}</div>
+                    <div className="display" style={{ fontSize: 20, color: 'var(--fg-0)' }}>{svShownName(user, t)}</div>
                     <button className="sv-btn" onClick={() => setEditingName(true)} style={{ padding: 6, color: 'var(--fg-3)' }} aria-label={t('change_password')}><SvIcon name="pencil" size={13}/></button>
                   </div>
                 )}
@@ -3364,7 +3395,7 @@ const MobileMenu = ({ user, onOpenAuth, onOpenProfile, onOpenBookmarks, onOpenAb
               <button className="sv-btn" onClick={onOpenProfile} style={{ display: 'flex', width: '100%', padding: 10, marginBottom: 4, justifyContent: 'flex-start', gap: 12 }}>
                 <AvatarDisplay user={user} size={32}/>
                 <div style={{ textAlign: 'left' }}>
-                  <div style={{ color: 'var(--fg-0)', fontSize: 13 }}>{user.displayName || user.email}</div>
+                  <div style={{ color: 'var(--fg-0)', fontSize: 13 }}>{svRealName(user) || (user.email && !svIsRelayEmail(user.email) ? user.email : t('shakeviewer_user'))}</div>
                   <div style={{ color: 'var(--fg-3)', fontSize: 11 }}>{t('view_profile')}</div>
                 </div>
               </button>
