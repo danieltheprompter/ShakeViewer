@@ -60,9 +60,11 @@ struct QuakeDetailSheet: View {
                     Button {
                         model.toggleBookmark(quake)
                     } label: {
-                        Label(model.isBookmarked(quake) ? "Bookmarked" : "Bookmark",
-                              systemImage: model.isBookmarked(quake) ? "bookmark.fill" : "bookmark")
+                        // Stable label so the button doesn't resize; only the icon fills.
+                        Label("Bookmark", systemImage: model.isBookmarked(quake) ? "bookmark.fill" : "bookmark")
                     }
+                    .accessibilityLabel(model.isBookmarked(quake) ? "Bookmarked" : "Bookmark")
+                    .accessibilityAddTraits(model.isBookmarked(quake) ? .isSelected : [])
                     .buttonStyle(.bordered)
                     ShareLink(item: quake.shareURL, subject: Text("M\(quake.magText) – \(quake.place)")) {
                         Label("Share", systemImage: "square.and.arrow.up")
