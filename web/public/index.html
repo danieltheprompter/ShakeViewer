@@ -127,10 +127,10 @@
   // Public helper for app events; no-op unless consent was granted.
   window.svTrack = function (name, params) { if (enabled && loaded) gtag('event', name, params || {}); };
   var L = {
-    en: { msg: 'We use Google Analytics cookies to understand how ShakeViewer is used. No ads, no selling of data.', accept: 'Accept', decline: 'Decline', more: 'Privacy Policy' },
-    es: { msg: 'Usamos cookies de Google Analytics para entender cómo se usa ShakeViewer. Sin anuncios ni venta de datos.', accept: 'Aceptar', decline: 'Rechazar', more: 'Política de privacidad' },
-    pt: { msg: 'Usamos cookies do Google Analytics para entender como o ShakeViewer é usado. Sem anúncios e sem venda de dados.', accept: 'Aceitar', decline: 'Recusar', more: 'Política de privacidade' },
-    ja: { msg: 'ShakeViewerの利用状況を把握するためにGoogleアナリティクスのCookieを使用します。広告やデータの販売は行いません。', accept: '同意する', decline: '拒否する', more: 'プライバシーポリシー' }
+    en: { msg: 'Cookies help us understand how ShakeViewer is used. ShakeViewer will never show ads or sell your data.', accept: 'Accept', decline: 'Decline', more: 'Privacy Policy' },
+    es: { msg: 'Las cookies nos ayudan a entender cómo se usa ShakeViewer. ShakeViewer nunca mostrará anuncios ni venderá tus datos.', accept: 'Aceptar', decline: 'Rechazar', more: 'Política de privacidad' },
+    pt: { msg: 'Os cookies nos ajudam a entender como o ShakeViewer é usado. O ShakeViewer nunca vai exibir anúncios nem vender seus dados.', accept: 'Aceitar', decline: 'Recusar', more: 'Política de privacidade' },
+    ja: { msg: 'Cookieは、ShakeViewerの利用状況を把握するのに役立ちます。ShakeViewerが広告を表示したり、お客様のデータを販売したりすることは一切ありません。', accept: '同意する', decline: '拒否する', more: 'プライバシーポリシー' }
   };
   function lang() { var l = (document.documentElement.getAttribute('lang') || 'en').slice(0, 2); return L[l] ? l : 'en'; }
   function hide() { var b = document.getElementById('sv-consent'); if (b) b.remove(); }
