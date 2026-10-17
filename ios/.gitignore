@@ -10,3 +10,5 @@ GoogleService-Info.plist
 perf/*.trace
 perf/*.xml
 build/
+
+Config/GoogleLocal.xcconfig

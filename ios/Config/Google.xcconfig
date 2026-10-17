@@ -1,0 +1,5 @@
+// Google Sign-In URL scheme. GoogleLocal.xcconfig (gitignored) is generated on the build Mac from
+// GoogleService-Info.plist's REVERSED_CLIENT_ID:
+//   echo "GOOGLE_REVERSED_CLIENT_ID = $(/usr/libexec/PlistBuddy -c 'Print :REVERSED_CLIENT_ID' ShakeViewer/Resources/GoogleService-Info.plist)" > Config/GoogleLocal.xcconfig
+GOOGLE_REVERSED_CLIENT_ID = com.shakeviewer.google-not-configured
+#include? "GoogleLocal.xcconfig"

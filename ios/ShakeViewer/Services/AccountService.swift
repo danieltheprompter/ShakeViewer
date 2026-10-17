@@ -11,6 +11,14 @@ struct AccountUser: Sendable, Equatable {
     let email: String?
     let displayName: String?
     var isEmailVerified: Bool = true
+    /// Firebase provider IDs linked to the account ("password", "apple.com", "google.com").
+    var providers: [String] = []
+
+    var usesPassword: Bool { providers.contains("password") }
+    var usesApple: Bool { providers.contains("apple.com") }
+    var usesGoogle: Bool { providers.contains("google.com") }
+    /// Apple/Google accounts have a trusted email; only password accounts need verification.
+    var needsEmailVerification: Bool { usesPassword && !isEmailVerified }
 }
 
 /// Optional Firebase layer. Everything quake-related works without it.
@@ -42,7 +50,7 @@ final class AccountService {
         if FirebaseApp.app() == nil { FirebaseApp.configure() }
         isAvailable = true
         authHandle = Auth.auth().addStateDidChangeListener { [weak self] _, u in
-            let mapped = u.map { AccountUser(uid: $0.uid, email: $0.email, displayName: $0.displayName, isEmailVerified: $0.isEmailVerified) }
+            let mapped = u.map(Self.mapUser)
             MainActor.assumeIsolated {
                 self?.user = mapped
                 self?.listenBookmarks()
@@ -75,6 +83,7 @@ final class AccountService {
     /// Maps Firebase Auth errors to short, friendly messages.
     nonisolated static func friendlyMessage(for error: Error) -> String {
         if let d = (error as? DeletionError)?.errorDescription { return d }
+        if let d = (error as? SocialAuthError)?.errorDescription { return d }
         #if canImport(FirebaseCore)
         let ns = error as NSError
         if ns.domain == AuthErrors.domain, let code = AuthErrorCode(rawValue: ns.code) {
@@ -87,6 +96,10 @@ final class AccountService {
             case .tooManyRequests: return "Too many attempts. Please wait a moment and try again."
             case .userDisabled: return "This account has been disabled."
             case .missingEmail: return "Enter your email address."
+            case .accountExistsWithDifferentCredential, .credentialAlreadyInUse:
+                return "An account with this email already exists with a different sign-in method. Sign in the way you did before (for example, email and password)."
+            case .userMismatch: return SocialAuthError.wrongAccount.errorDescription ?? ""
+            case .operationNotAllowed: return "This sign-in method isn't enabled yet. Please use another option."
             default: break
             }
         }
@@ -126,7 +139,8 @@ final class AccountService {
             try? Auth.auth().signOut()
             throw error
         }
-        return AccountUser(uid: r.user.uid, email: r.user.email, displayName: name.isEmpty ? nil : name, isEmailVerified: false)
+        return AccountUser(uid: r.user.uid, email: r.user.email, displayName: name.isEmpty ? nil : name, isEmailVerified: false,
+                           providers: ["password"])
     }
 
     nonisolated private static func sendVerificationFirebase() async throws {
@@ -138,7 +152,12 @@ final class AccountService {
         guard let u = Auth.auth().currentUser else { return nil }
         try? await u.reload()
         guard let r = Auth.auth().currentUser else { return nil }
-        return AccountUser(uid: r.uid, email: r.email, displayName: r.displayName, isEmailVerified: r.isEmailVerified)
+        return mapUser(r)
+    }
+
+    nonisolated static func mapUser(_ u: User) -> AccountUser {
+        AccountUser(uid: u.uid, email: u.email, displayName: u.displayName, isEmailVerified: u.isEmailVerified,
+                    providers: u.providerData.map(\.providerID))
     }
 
     nonisolated private static func signInFirebase(email: String, password: String) async throws {
@@ -156,7 +175,67 @@ final class AccountService {
         #if canImport(FirebaseCore)
         try? Auth.auth().signOut()
         #endif
+        Task { await GoogleAuthorizer.signOut() }
     }
+
+    // MARK: Sign in with Apple / Google
+
+    /// Completes Sign in with Apple. `rawNonce` is the unhashed nonce whose SHA256 went into the request.
+    func signInWithApple(_ r: AppleAuthResult, rawNonce: String) async throws {
+        #if canImport(FirebaseCore)
+        if let u = try await Self.appleSignInFirebase(r, rawNonce: rawNonce, termsVersion: Self.termsVersion) { user = u }
+        #endif
+    }
+
+    func signInWithGoogle() async throws {
+        #if canImport(FirebaseCore)
+        let t = try await GoogleAuthorizer.signIn()
+        if let u = try await Self.googleSignInFirebase(t, termsVersion: Self.termsVersion) { user = u }
+        #endif
+    }
+
+    #if canImport(FirebaseCore)
+    nonisolated private static func appleSignInFirebase(_ r: AppleAuthResult, rawNonce: String, termsVersion: String) async throws -> AccountUser? {
+        let cred = OAuthProvider.appleCredential(withIDToken: r.idToken, rawNonce: rawNonce, fullName: r.fullName)
+        let res = try await Auth.auth().signIn(with: cred)
+        // Apple only shares the name on the first authorization.
+        if res.user.displayName == nil, let n = r.fullName {
+            let name = PersonNameComponentsFormatter.localizedString(from: n, style: .default)
+            if !name.isEmpty {
+                let req = res.user.createProfileChangeRequest(); req.displayName = name
+                try? await req.commitChanges()
+            }
+        }
+        try await recordConsentIfNeeded(res, termsVersion: termsVersion)
+        return Auth.auth().currentUser.map(mapUser)
+    }
+
+    nonisolated private static func googleSignInFirebase(_ t: GoogleAuthorizer.Tokens, termsVersion: String) async throws -> AccountUser? {
+        let cred = GoogleAuthProvider.credential(withIDToken: t.idToken, accessToken: t.accessToken)
+        let res = try await Auth.auth().signIn(with: cred)
+        try await recordConsentIfNeeded(res, termsVersion: termsVersion)
+        return Auth.auth().currentUser.map(mapUser)
+    }
+
+    /// Social sign-up shows "By continuing you agree to the Terms/Privacy"; record that consent like email sign-up does.
+    nonisolated private static func recordConsentIfNeeded(_ res: AuthDataResult, termsVersion: String) async throws {
+        let ref = Firestore.firestore().collection("users").document(res.user.uid)
+        let isNew = res.additionalUserInfo?.isNewUser ?? false
+        if !isNew, let snap = try? await ref.getDocument(), snap.data()?["termsAcceptedAt"] != nil { return }
+        do {
+            try await ref.setData([
+                "termsAcceptedAt": FieldValue.serverTimestamp(),
+                "termsVersion": termsVersion,
+                "privacyPolicyAcceptedAt": FieldValue.serverTimestamp(),
+                "privacyPolicyVersion": termsVersion,
+            ], merge: true)
+        } catch {
+            if isNew { try? await res.user.delete() } // don't leave a new account without recorded consent
+            try? Auth.auth().signOut()
+            throw error
+        }
+    }
+    #endif
 
     // MARK: Account deletion (App Store Guideline 5.1.1(v))
 
@@ -173,13 +252,27 @@ final class AccountService {
 
     /// Deletes users/{uid}/bookmarks, users/{uid}/searchHistory, users/{uid}, then the Firebase Auth user.
     /// Mirrors the site's deleteAccount(): re-authenticates email/password users first.
-    func deleteAccount(password: String) async throws {
+    func deleteAccount(password: String = "") async throws {
         #if canImport(FirebaseCore)
-        guard user != nil else { throw DeletionError.notSignedIn }
+        guard let current = user else { throw DeletionError.notSignedIn }
+        // Re-authenticate with the same provider the account uses (Apple/Google never ask for a password).
+        let reauth: Reauth
+        if current.usesPassword && (!password.isEmpty || (!current.usesApple && !current.usesGoogle)) {
+            guard !password.isEmpty else { throw DeletionError.passwordRequired }
+            reauth = .password(password)
+        } else if current.usesApple {
+            let raw = AppleNonce.random()
+            let r = try await AppleAuthorizer.authorize(hashedNonce: AppleNonce.sha256(raw))
+            reauth = .apple(r, rawNonce: raw)
+        } else if current.usesGoogle {
+            reauth = .google(try await GoogleAuthorizer.signIn())
+        } else {
+            reauth = .none
+        }
         bookmarksListener?.remove(); bookmarksListener = nil
         historyListener?.remove(); historyListener = nil
         do {
-            try await Self.deleteEverything(password: password)
+            try await Self.deleteEverything(reauth)
         } catch {
             listenBookmarks(); listenHistory()
             throw error
@@ -187,17 +280,32 @@ final class AccountService {
         remoteBookmarks = []
         cloudHistory = []
         user = nil
+        if current.usesGoogle { await GoogleAuthorizer.signOut(disconnect: true) }
         #endif
     }
 
+    enum Reauth: Sendable {
+        case password(String)
+        case apple(AppleAuthResult, rawNonce: String)
+        case google(GoogleAuthorizer.Tokens)
+        case none
+    }
+
     #if canImport(FirebaseCore)
-    nonisolated private static func deleteEverything(password: String) async throws {
+    nonisolated private static func deleteEverything(_ reauth: Reauth) async throws {
         guard let u = Auth.auth().currentUser else { throw DeletionError.notSignedIn }
-        let isPasswordUser = u.providerData.contains { $0.providerID == EmailAuthProviderID }
-        if isPasswordUser {
+        switch reauth {
+        case .password(let password):
             guard !password.isEmpty, let email = u.email else { throw DeletionError.passwordRequired }
-            let cred = EmailAuthProvider.credential(withEmail: email, password: password)
-            _ = try await u.reauthenticate(with: cred)
+            _ = try await u.reauthenticate(with: EmailAuthProvider.credential(withEmail: email, password: password))
+        case .apple(let r, let raw):
+            _ = try await u.reauthenticate(with: OAuthProvider.appleCredential(withIDToken: r.idToken, rawNonce: raw, fullName: nil))
+            // Apple requires revoking the user's Sign in with Apple token when the account is deleted.
+            if let code = r.authorizationCode { try? await Auth.auth().revokeToken(withAuthorizationCode: code) }
+        case .google(let t):
+            _ = try await u.reauthenticate(with: GoogleAuthProvider.credential(withIDToken: t.idToken, accessToken: t.accessToken))
+        case .none:
+            break
         }
         let db = Firestore.firestore()
         let userRef = db.collection("users").document(u.uid)

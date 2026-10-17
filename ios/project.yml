@@ -10,17 +10,27 @@ settings:
     SWIFT_VERSION: "6.0"
     SWIFT_STRICT_CONCURRENCY: complete
     MARKETING_VERSION: "1.0"
-    CURRENT_PROJECT_VERSION: "4"
+    CURRENT_PROJECT_VERSION: "5"
 packages:
   Firebase:
     url: https://github.com/firebase/firebase-ios-sdk
     from: "12.19.2"
+  GoogleSignIn:
+    url: https://github.com/google/GoogleSignIn-iOS
+    from: "9.0.0"
 targets:
   ShakeViewer:
     type: application
     platform: iOS
     sources:
       - path: ShakeViewer
+    configFiles:
+      Debug: Config/Google.xcconfig
+      Release: Config/Google.xcconfig
+    entitlements:
+      path: Support/ShakeViewer.entitlements
+      properties:
+        com.apple.developer.applesignin: [Default]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.shakeviewer.app
@@ -47,6 +57,10 @@ targets:
         product: FirebaseAuth
       - package: Firebase
         product: FirebaseFirestore
+      - package: GoogleSignIn
+        product: GoogleSignIn
+      - package: GoogleSignIn
+        product: GoogleSignInSwift
   ShakeViewerUITests:
     type: bundle.ui-testing
     platform: iOS

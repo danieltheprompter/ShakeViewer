@@ -1,4 +1,8 @@
 import SwiftUI
+import AuthenticationServices
+#if canImport(GoogleSignInSwift)
+import GoogleSignInSwift
+#endif
 
 struct SettingsScreen: View {
     @Environment(AccountService.self) private var account
@@ -22,7 +26,7 @@ struct SettingsScreen: View {
                         .font(.caption).foregroundStyle(.secondary)
                 } else if let u = account.user {
                     LabeledContent("Signed in", value: u.displayName ?? u.email ?? "Account")
-                    if !u.isEmailVerified {
+                    if u.needsEmailVerification {
                         EmailVerificationRow()
                     }
                     Button("Sign out") { account.signOut() }
@@ -71,7 +75,7 @@ struct SettingsScreen: View {
             }
         }
         .navigationTitle("Settings")
-        .task { if account.user?.isEmailVerified == false { await account.refreshUser() } }
+        .task { if account.user?.needsEmailVerification == true { await account.refreshUser() } }
     }
 }
 
@@ -171,6 +175,12 @@ struct SignInScreen: View {
             }
             .pickerStyle(.segmented)
             .onChange(of: creating) { error = nil; info = nil; confirmPassword = "" }
+            Section {
+                SocialSignInButtons(busy: $busy, error: $error) { dismiss() }
+            } footer: {
+                Text("By continuing, you agree to the [Terms of Use](\(Legal.termsURL.absoluteString)) and [Privacy Policy](\(Legal.privacyURL.absoluteString)).")
+                    .accessibilityIdentifier("socialTermsNotice")
+            }
             Section {
                 if creating {
                     TextField("Name", text: $name)
@@ -382,6 +392,12 @@ struct DeleteAccountScreen: View {
     @State private var busy = false
     @State private var error: String?
 
+    /// Password accounts confirm with their password; Apple/Google accounts re-authenticate with that provider.
+    private var needsPassword: Bool {
+        guard let u = account.user else { return true }
+        return u.usesPassword || (!u.usesApple && !u.usesGoogle)
+    }
+
     var body: some View {
         Form {
             Section {
@@ -389,17 +405,26 @@ struct DeleteAccountScreen: View {
                 Text("Bookmarks and history stored only on this device stay until you remove the app.")
                     .font(.footnote).foregroundStyle(.secondary)
             }
-            Section("Confirm with your password") {
-                SecureField("Password", text: $password)
-                    .textContentType(.password)
-                    .accessibilityIdentifier("deletePassword")
+            if needsPassword {
+                Section("Confirm with your password") {
+                    SecureField("Password", text: $password)
+                        .textContentType(.password)
+                        .accessibilityIdentifier("deletePassword")
+                }
+            } else {
+                Section("Confirm it’s you") {
+                    Text(account.user?.usesApple == true
+                         ? "You’ll be asked to confirm with Sign in with Apple. ShakeViewer will also revoke its access to your Apple ID."
+                         : "You’ll be asked to confirm with your Google account.")
+                        .font(.callout)
+                }
             }
             if let error { Text(error).foregroundStyle(.red).font(.footnote) }
             Section {
                 Button(role: .destructive) { confirm = true } label: {
                     HStack { Text("Delete account permanently"); if busy { Spacer(); ProgressView() } }
                 }
-                .disabled(busy || password.isEmpty)
+                .disabled(busy || (needsPassword && password.isEmpty))
                 .accessibilityIdentifier("confirmDeleteAccount")
             }
         }
@@ -417,17 +442,73 @@ struct DeleteAccountScreen: View {
         Task {
             defer { busy = false }
             do {
-                try await account.deleteAccount(password: password)
+                try await account.deleteAccount(password: needsPassword ? password : "")
                 dismiss()
             } catch {
+                if AppleNonce.isCancel(error) { return }
                 let ns = error as NSError
                 // Firebase wrong-password / invalid-credential codes: don't leak details.
                 if ns.domain == "FIRAuthErrorDomain", [17009, 17004].contains(ns.code) {
                     self.error = "That password isn’t correct."
                 } else {
-                    self.error = error.localizedDescription
+                    self.error = AccountService.friendlyMessage(for: error)
                 }
             }
+        }
+    }
+}
+
+/// Sign in with Apple (Apple's official button) above the Google-branded button, per Apple HIG / Guideline 4.8.
+struct SocialSignInButtons: View {
+    @Binding var busy: Bool
+    @Binding var error: String?
+    let onSignedIn: () -> Void
+    @Environment(AccountService.self) private var account
+    @Environment(\.colorScheme) private var colorScheme
+    @State private var currentNonce: String?
+
+    var body: some View {
+        VStack(spacing: 12) {
+            SignInWithAppleButton(.continue) { req in
+                let raw = AppleNonce.random()
+                currentNonce = raw
+                req.requestedScopes = [.fullName, .email]
+                req.nonce = AppleNonce.sha256(raw)
+            } onCompletion: { result in
+                switch result {
+                case .success(let auth):
+                    guard let raw = currentNonce else { error = SocialAuthError.missingToken.errorDescription; return }
+                    do {
+                        let r = try AppleNonce.extract(auth)
+                        run { try await account.signInWithApple(r, rawNonce: raw) }
+                    } catch { self.error = AccountService.friendlyMessage(for: error) }
+                case .failure(let e):
+                    if !AppleNonce.isCancel(e) { error = "Sign in with Apple failed. Please try again." }
+                }
+            }
+            .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)
+            .frame(maxWidth: .infinity, minHeight: 50, maxHeight: 50)
+            .accessibilityIdentifier("signInWithApple")
+
+            #if canImport(GoogleSignInSwift)
+            GoogleSignInButton(scheme: colorScheme == .dark ? .dark : .light, style: .wide, state: busy ? .disabled : .normal) {
+                run { try await account.signInWithGoogle() }
+            }
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .accessibilityLabel("Sign in with Google")
+            .accessibilityIdentifier("signInWithGoogle")
+            #endif
+        }
+        .disabled(busy)
+        .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 12, trailing: 16))
+    }
+
+    private func run(_ op: @escaping @MainActor () async throws -> Void) {
+        busy = true; error = nil
+        Task {
+            defer { busy = false }
+            do { try await op(); onSignedIn() }
+            catch { if !AppleNonce.isCancel(error) { self.error = AccountService.friendlyMessage(for: error) } }
         }
     }
 }

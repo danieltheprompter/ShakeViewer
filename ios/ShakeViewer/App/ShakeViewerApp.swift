@@ -32,7 +32,10 @@ struct ShakeViewerApp: App {
                 .environment(model)
                 .environment(account)
                 .preferredColorScheme(appearance.colorScheme)
-                .onOpenURL { model.handle(url: $0) }
+                .onOpenURL { url in
+                    if GoogleAuthorizer.handle(url) { return }
+                    model.handle(url: url)
+                }
         }
     }
 }
